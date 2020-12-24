@@ -22,9 +22,13 @@ aug_config = {'nbbox': 128,
 # dimension = [22., 15.8, 2.6]
 # offset = [11., 4.8, -0.5]
 
-range_x = [-5., 5.]
-range_y = [-3, 3.]
-range_z = [-1., 1.]
+# range_x = [-5., 5.]
+# range_y = [-3, 3.]
+# range_z = [-1., 1.]
+
+range_x = [-10., 10.]
+range_y = [-6, 6.]
+range_z = [-2., 2.]
 
 dimension = [range_x[1]-range_x[0],
              range_y[1]-range_y[0],

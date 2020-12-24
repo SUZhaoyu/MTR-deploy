@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 from os.path import join
+from data_utils.nms import nms
+from data_utils.normalization import convert_threejs_bbox_with_prob, convert_threejs_coors
 from point_viz.converter import PointvizConverter
 Converter = PointvizConverter(home='/home/tony/threejs/MTR')
 
@@ -48,12 +50,12 @@ if __name__ == '__main__':
                                     input_num_list_p: batch_input_num_list,
                                     is_training_p: False})
 
-            # input_rgbs = np.zeros_like(batch_input_coors) + [255, 255, 255]
-            # output_rgbs = np.zeros_like(output_coors) + [255, 0, 0]
-            # plot_coors = np.concatenate([batch_input_coors, output_coors], axis=0)
-            # plot_rgbs = np.concatenate([input_rgbs, output_rgbs], axis=0)
-            #
-            # mask = output_conf > 0.7
+            input_rgbs = np.zeros_like(batch_input_coors) + [255, 255, 255]
+            output_rgbs = np.zeros_like(output_coors) + [255, 0, 0]
+            plot_coors = np.concatenate([batch_input_coors, output_coors], axis=0)
+            plot_rgbs = np.concatenate([input_rgbs, output_rgbs], axis=0)
+
+            # mask = output_conf > 0.5
             # output_conf = output_conf[mask]
             # output_cls = output_cls[mask]
             # output_bboxes = output_attrs[mask, :]
