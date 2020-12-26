@@ -10,7 +10,7 @@ import time
 from tqdm import tqdm
 from copy import deepcopy
 from point_viz.converter import PointvizConverter
-Converter = PointvizConverter(home='/home/tony/threejs/MTR')
+Converter = PointvizConverter(home='/home/akk/threejs/MTR')
 
 
 # 2.93 milliseconds

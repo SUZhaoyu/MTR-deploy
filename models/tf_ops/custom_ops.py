@@ -7,6 +7,7 @@ from tensorflow.python.framework import ops
 CWD = os.path.dirname(os.path.abspath(__file__))
 
 grid_sampling_exe = tf.load_op_library(join(CWD, 'build', 'grid_sampling.so'))
+print("******************** GridSamplingOp ***********************")
 def grid_sampling(input_coors,
                   input_num_list,
                   resolution,
