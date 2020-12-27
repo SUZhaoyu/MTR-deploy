@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+import zmq
+import logging
 from os.path import join
 from data_utils.nms import nms
 from data_utils.normalization import convert_threejs_bbox_with_prob, convert_threejs_coors
@@ -36,12 +38,18 @@ tf_config.gpu_options.allow_growth = False
 tf_config.allow_soft_placement = False
 tf_config.log_device_placement = False
 
+# context = zmq.Context()
+# socket = context.socket(zmq.PUSH)
+# socket.bind("tcp://localhost:5558")
+# logging.info("Pushing zmq binary to tcp://localhost:5558")
+#
+# socket.send()
 
 if __name__ == '__main__':
     with tf.Session(config=tf_config) as sess:
         saver.restore(sess, model_path)
         for frame_id in tqdm(range(100000)):
-            batch_input_coors, batch_input_features, batch_input_num_list = \
+            info_tag, batch_input_coors, batch_input_features, batch_input_num_list = \
                 next(SaiKungDataGenerator.read_from_zmq())
             output_attrs, output_conf, output_cls, output_coors = \
                 sess.run([roi_attrs, roi_conf, roi_cls, base_coors],
@@ -80,3 +88,5 @@ if __name__ == '__main__':
                                   coors=convert_threejs_coors(plot_coors),
                                   default_rgb=plot_rgbs,
                                   bbox_params=pred_bbox_params)
+
+

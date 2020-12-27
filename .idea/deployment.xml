@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="tony@192.168.53.68:22" remoteFilesAllowedToDisappearOnAutoupload="false" autoUploadExternalChanges="true">
+  <component name="PublishConfigData" autoUpload="Always" serverName="akk@mtr:22" remoteFilesAllowedToDisappearOnAutoupload="false" autoUploadExternalChanges="true">
     <serverData>
-      <paths name="tony@192.168.53.68:22">
+      <paths name="MTR">
         <serverdata>
           <mappings>
-            <mapping deploy="/MTR-deploy" local="$PROJECT_DIR$" />
+            <mapping deploy="/home/akk/MTR-deploy" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="akk@mtr:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/akk/MTR-deploy" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="803fe3ae-3c43-4ed3-84f9-f25f26299b14" name="MTR" url="http:///">
+        <fileTransfer accessType="SFTP" host="192.168.222.3" port="22" sshConfigId="80bcbcf0-29d2-4fbb-b52f-42cff8fe575c" sshConfig="akk@192.168.222.3:22 agent" authAgent="true" />
+      </webServer>
+    </option>
+  </component>
+</project>

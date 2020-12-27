@@ -3,8 +3,10 @@ import numpy as np
 import time
 from tqdm import tqdm
 from copy import deepcopy
+from datetime import datetime
 import multiprocessing
 import sys
+import struct
 
 
 # frame_id 4
@@ -47,9 +49,17 @@ class DataGenerator(object):
     def read_from_zmq(self):
         while True:
             message = self.socket.recv()
-            point_cloud = deepcopy(np.frombuffer(message, dtype=np.float32))
+            frame_id = deepcopy(np.frombuffer(message[:4], dtype=np.int32))[0]
+            point_count = deepcopy(np.frombuffer(message[4:8], dtype=np.int32))[0]
+            lidar_timestamp = deepcopy(np.frombuffer(message[8:16], dtype=np.float64))[0]
+            unix_timestamp = deepcopy(np.frombuffer(message[16:24], dtype=np.float64))[0]
+            info_tag = [frame_id, point_count, lidar_timestamp, unix_timestamp]
+            point_cloud = deepcopy(np.frombuffer(message[24:], dtype=np.float32))
 
             point_cloud = np.reshape(point_cloud, newshape=(-1, 9))
+            if len(point_cloud) != point_count:
+                logging.warning("Number of actual input point is different from buffer head ({} vs. {}) @ {}"
+                                .format(len(point_cloud), point_count, datetime.fromtimestamp(unix_timestamp)))
             point_cloud[:, :3] *= [1., -1., -1]
             point_cloud[:, 2] += 3.3215672969818115
             # point_cloud[:, 2] *= -1
@@ -91,7 +101,7 @@ class DataGenerator(object):
             intensity = feature_normalize(point_cloud[:, 4:5], method=300.)
             num_list = np.array([len(coors)])
 
-            yield coors, intensity, num_list
+            yield info_tag, coors, intensity, num_list
 
 
 
@@ -99,7 +109,13 @@ if __name__ == '__main__':
     SaiKungGenerator = DataGenerator(range_x = [-11., 11.],
                                     range_y = [-4.8, 11],
                                     range_z = [0.5, 3.1])
-    for _ in tqdm(range(10000)):
-        coors, intenrity, num_list = next(SaiKungGenerator.read_from_zmq())
-        print(coors.shape)
-
+    output_coors, output_intensity, output_num_list = [], [], []
+    for i in tqdm(range(1000)):
+        _, coors, intensity, num_list = next(SaiKungGenerator.read_from_zmq())
+        if i % 100 == 0:
+            output_coors.append(coors)
+            output_intensity.append(intensity)
+            output_num_list.append(num_list)
+    np.save("coors.npy", output_coors)
+    np.save("intensity.npy", output_intensity)
+    np.save("num_list.npy", output_num_list)
