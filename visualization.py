@@ -41,7 +41,7 @@ tf_config.log_device_placement = False
 context = zmq.Context()
 socket = context.socket(zmq.PUSH)
 # socket.setsockopt(zmq.SNDHWM, 10)
-socket.bind("tcp://127.0.0.1:5555")
+socket.connect("tcp://127.0.0.1:5555")
 logging.info("Pushing zmq binary to tcp://127.0.0.1:5555")
 
 # data = np.array([1., 2.], dtype=np.float32)
@@ -92,7 +92,7 @@ if __name__ == '__main__':
             if bbox_count > 0:
                 pred_bboxes = np.array(pred_bboxes, dtype=np.float32)
                 zmq_push_byte += pred_bboxes.tobytes("C")
-            print(socket.send(zmq_push_byte, flags=zmq.NOBLOCK, track=True))
+            socket.send(zmq_push_byte)
 
 
             # frame_id = deepcopy(np.frombuffer(message[:4], dtype=np.int32))[0]
