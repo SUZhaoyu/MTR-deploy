@@ -18,26 +18,8 @@ import tensorflow as tf
 eps = tf.constant(1e-6)
 
 
-def get_roi_attrs_from_logits_anchors(input_logits, base_coors, anchor_size):
-    new_base_coors = tf.concat([base_coors, base_coors], axis=0)
-    anchor_angle_offset = tf.concat([tf.zeros(base_coors.shape[0]), tf.zeros(base_coors.shape[0]) + math.pi / 2],
-                                    axis=0)
-    anchor_diag = tf.sqrt(tf.pow(anchor_size[0], 2.) + tf.pow(anchor_size[1], 2.))
-    w = tf.exp(input_logits[:, 0]) * anchor_size[0]
-    l = tf.exp(input_logits[:, 1]) * anchor_size[1]
-    h = tf.exp(input_logits[:, 2]) * anchor_size[2]
-    x = input_logits[:, 3] * anchor_diag + new_base_coors[:, 0]
-    y = input_logits[:, 4] * anchor_diag + new_base_coors[:, 1]
-    z = input_logits[:, 5] * anchor_size[2] + new_base_coors[:, 2]
-    r = input_logits[:, 6] + \
-        anchor_angle_offset + \
-        tf.cast(tf.greater(input_logits[:, 7], 0.), dtype=tf.float32) * math.pi
-    flip_mask = tf.cast(tf.greater(r, math.pi), dtype=tf.float32)
-    r = r - tf.math.divide_no_nan(2 * math.pi * r, tf.abs(r)) * flip_mask
-    return tf.stack([w, l, h, x, y, z, r], axis=-1)
 
-
-def get_roi_attrs_from_logits(input_logits, base_coors, anchor_size, norm_angle=False):
+def roi_logits_to_attrs_tf(base_coors, input_logits, anchor_size):
     anchor_diag = tf.sqrt(tf.pow(anchor_size[0], 2.) + tf.pow(anchor_size[1], 2.))
     w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * anchor_size[0], 0., 1e5)
     l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * anchor_size[1], 0., 1e5)
@@ -45,25 +27,19 @@ def get_roi_attrs_from_logits(input_logits, base_coors, anchor_size, norm_angle=
     x = tf.clip_by_value(input_logits[:, 3] * anchor_diag + base_coors[:, 0], -1e5, 1e5)
     y = tf.clip_by_value(input_logits[:, 4] * anchor_diag + base_coors[:, 1], -1e5, 1e5)
     z = tf.clip_by_value(input_logits[:, 5] * anchor_size[2] + base_coors[:, 2], -1e5, 1e5)
-    if norm_angle:
-        r = input_logits[:, 6] * math.pi
-    else:
-        r = input_logits[:, 6]
+    r = input_logits[:, 6]
     return tf.stack([w, l, h, x, y, z, r], axis=-1)
 
 
-def get_bbox_attrs_from_logits(input_logits, roi_attrs, norm_angle=False):
-    roi_diag = tf.sqrt(tf.pow(roi_attrs[:, 0], 2.) + tf.pow(roi_attrs[:, 1], 2.))
-    w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * roi_attrs[:, 0], 0., 1e5)
-    l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * roi_attrs[:, 1], 0., 1e5)
-    h = tf.clip_by_value(tf.exp(input_logits[:, 2]) * roi_attrs[:, 2], 0., 1e5)
-    x = tf.clip_by_value(input_logits[:, 3] * roi_diag + roi_attrs[:, 3], -1e5, 1e5)
-    y = tf.clip_by_value(input_logits[:, 4] * roi_diag + roi_attrs[:, 4], -1e5, 1e5)
-    z = tf.clip_by_value(input_logits[:, 5] * roi_attrs[:, 2] + roi_attrs[:, 5], -1e5, 1e5)
-    if norm_angle:
-        r = input_logits[:, 6] * math.pi + roi_attrs[:, 6]
-    else:
-        r = input_logits[:, 6] + roi_attrs[:, 6]
+def bbox_logits_to_attrs_tf(input_roi_attrs, input_logits):
+    roi_diag = tf.sqrt(tf.pow(input_roi_attrs[:, 0], 2.) + tf.pow(input_roi_attrs[:, 1], 2.))
+    w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * input_roi_attrs[:, 0], 0., 1e5)
+    l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * input_roi_attrs[:, 1], 0., 1e5)
+    h = tf.clip_by_value(tf.exp(input_logits[:, 2]) * input_roi_attrs[:, 2], 0., 1e5)
+    x = tf.clip_by_value(input_logits[:, 3] * roi_diag + input_roi_attrs[:, 3], -1e5, 1e5)
+    y = tf.clip_by_value(input_logits[:, 4] * roi_diag + input_roi_attrs[:, 4], -1e5, 1e5)
+    z = tf.clip_by_value(input_logits[:, 5] * input_roi_attrs[:, 2] + input_roi_attrs[:, 5], -1e5, 1e5)
+    r = input_logits[:, 6] + input_roi_attrs[:, 6]
     return tf.stack([w, l, h, x, y, z, r], axis=-1)
 
 
@@ -245,7 +221,8 @@ def get_3d_iou_from_area(gt_attrs, pred_attrs, intersection_2d_area, intersectio
     gt_volume = gt_attrs[:, 0] * gt_attrs[:, 1] * gt_attrs[:, 2]
     pred_volume = pred_attrs[:, 0] * pred_attrs[:, 1] * pred_attrs[:, 2]
     iou = tf.math.divide_no_nan(intersection_volume, gt_volume + pred_volume - intersection_volume)
-
+    # tf.summary.scalar('iou_nan_sum',
+    #                   hvd.allreduce(tf.reduce_sum(tf.cast(tf.is_nan(iou), dtype=tf.float32)), average=False))
     if clip:
         iou = tf.where(tf.is_nan(iou), tf.ones_like(iou), iou)
     return iou

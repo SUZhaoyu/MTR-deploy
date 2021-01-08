@@ -1,11 +1,15 @@
-import tensorflow as tf
+import logging
+
 import numpy as np
+import tensorflow as tf
+
+from models.tf_ops.custom_ops import roi_logits_to_attrs, bbox_logits_to_attrs
+from models.tf_ops.custom_ops import voxel2col
+from models.utils.iou_utils import roi_logits_to_attrs_tf, bbox_logits_to_attrs_tf
 from models.utils.var_utils import _variable_with_l2_loss
 
 
-# from models.tf_ops.custom_ops import voxel2col
-
-def batch_norm_template(inputs, is_training, bn_decay, name):
+def batch_norm_template(inputs, is_training, bn_decay, name, trainable=True):
     '''
     Batch Norm for voxel conv operation
 
@@ -20,6 +24,7 @@ def batch_norm_template(inputs, is_training, bn_decay, name):
                                          axis=-1,
                                          momentum=bn_decay,
                                          training=is_training,
+                                         trainable=trainable,
                                          name=name)
 
 
@@ -32,11 +37,15 @@ def kernel_conv_wrapper(inputs,
                         activation='relu',
                         bn_decay=None,
                         is_training=True,
+                        trainable=True,
                         histogram=False,
                         summary=False):
     if scope == 'default':
-        print("WARNING: scope name was not given and has been assigned as 'default' ")
-    l2_loss_collection = "l2"
+        logging.warning("Scope name was not given and has been assigned as 'default'. ")
+        l2_loss_collection = 'default'
+    else:
+        l2_loss_collection = scope.split('_')[0] + "_l2"
+
     with tf.variable_scope(scope):
         num_input_channels = inputs.get_shape()[-1].value
         kernel_shape = [kernel_size ** 3 * num_input_channels, num_output_channels]
@@ -44,12 +53,14 @@ def kernel_conv_wrapper(inputs,
                                         shape=kernel_shape,
                                         use_xavier=use_xavier,
                                         stddev=stddev,
-                                        l2_loss_collection=l2_loss_collection)
+                                        l2_loss_collection=l2_loss_collection,
+                                        trainable=trainable)
         biases = _variable_with_l2_loss(name='biases',
                                         shape=[num_output_channels],
                                         initializer=tf.constant_initializer(0.0),
                                         with_l2_loss=False,
-                                        l2_loss_collection=None)
+                                        l2_loss_collection=None,
+                                        trainable=trainable)
         if histogram:
             tf.summary.histogram('kernel', kernel)
         if summary:
@@ -66,125 +77,73 @@ def kernel_conv_wrapper(inputs,
             outputs = batch_norm_template(inputs=outputs,
                                           is_training=is_training,
                                           bn_decay=bn_decay,
-                                          name='bn')
+                                          name='bn',
+                                          trainable=trainable)
         if activation is not None:
             activation_fn_dict = {'relu': tf.nn.relu,
                                   'elu': tf.nn.elu,
                                   'leaky_relu': tf.nn.leaky_relu}
             activation_fn = activation_fn_dict[activation]
             outputs = activation_fn(outputs)
-        return outputs
+    return outputs
 
-# def dense_conv_wrapper_old(inputs,
-#                        num_output_channels,
-#                        kernel_size=3,
-#                        scope='default',
-#                        use_xavier=True,
-#                        stddev=1e-3,
-#                        activation='relu',
-#                        bn_decay=None,
-#                        is_training=True,
-#                        histogram=False,
-#                        summary=False):
-#     if scope == 'default':
-#         print("WARNING: scope name was not given and has been assigned as 'default' ")
-#     l2_loss_collection = "l2" # TODO: need to change the l2 loss collection for two-stage training.
-#     with tf.variable_scope(scope):
-#         num_input_channels = inputs.get_shape()[-1].value
-#         input_size = np.cbrt(inputs.get_shape()[-2].value).astype(np.int32)
-#         reshaped_inputs = tf.reshape(inputs, shape=[-1, input_size, input_size, input_size, num_input_channels])
-#         kernel_shape = [kernel_size, kernel_size, kernel_size, num_input_channels, num_output_channels]
-#         kernel = _variable_with_l2_loss(name='kernel',
-#                                         shape=kernel_shape,
-#                                         use_xavier=use_xavier,
-#                                         stddev=stddev,
-#                                         l2_loss_collection=l2_loss_collection)
-#         biases = _variable_with_l2_loss(name='biases',
-#                                         shape=[num_output_channels],
-#                                         initializer=tf.constant_initializer(0.0),
-#                                         with_l2_loss=False,
-#                                         l2_loss_collection=None)
-#         if histogram:
-#             tf.summary.histogram('kernel', kernel)
-#         if summary:
-#             tf.summary.scalar('kernel_L2', tf.nn.l2_loss(kernel))
-#
-#         outputs = tf.nn.conv3d(input=reshaped_inputs,
-#                                filter=kernel,
-#                                strides=[1, 1, 1, 1, 1],
-#                                padding='VALID')
-#
-#         if bn_decay is None:
-#             outputs = tf.nn.bias_add(outputs, biases)
-#         else:
-#             outputs = batch_norm_template(inputs=outputs,
-#                                           is_training=is_training,
-#                                           bn_decay=bn_decay,
-#                                           name='bn')
-#         if activation is not None:
-#             activation_fn_dict = {'relu': tf.nn.relu,
-#                                   'elu': tf.nn.elu,
-#                                   'leaky_relu': tf.nn.leaky_relu}
-#             activation_fn = activation_fn_dict[activation]
-#             outputs = activation_fn(outputs)
-#         output_size = int(outputs.get_shape()[1].value * outputs.get_shape()[2].value * outputs.get_shape()[3].value)
-#         if output_size == 1:
-#             outputs = tf.squeeze(outputs, axis=[1, 2, 3])
-#         else:
-#             outputs = tf.reshape(outputs, shape=[-1, output_size, num_output_channels])
-#
-#         return outputs
+def dense_conv_wrapper(inputs,
+                       num_output_channels,
+                       kernel_size=3,
+                       scope='default',
+                       use_xavier=True,
+                       stddev=1e-3,
+                       activation='relu',
+                       bn_decay=None,
+                       is_training=True,
+                       trainable=True,
+                       histogram=False,
+                       summary=False):
+    if scope == 'default':
+        logging.warning("Scope name was not given and has been assigned as 'default'. ")
+        l2_loss_collection = 'default'
+    else:
+        l2_loss_collection = scope.split('_')[0] + "_l2"
+    with tf.variable_scope(scope):
+        num_input_channels = inputs.get_shape()[-1].value
+        kernel_shape = [kernel_size, kernel_size, kernel_size, num_input_channels, num_output_channels]
+        kernel = _variable_with_l2_loss(name='weight',
+                                        shape=kernel_shape,
+                                        use_xavier=use_xavier,
+                                        stddev=stddev,
+                                        l2_loss_collection=l2_loss_collection,
+                                        trainable=trainable)
+        biases = _variable_with_l2_loss(name='biases',
+                                        shape=[num_output_channels],
+                                        initializer=tf.constant_initializer(0.0),
+                                        with_l2_loss=False,
+                                        l2_loss_collection=None,
+                                        trainable=trainable)
+        if histogram:
+            tf.summary.histogram('kernel', kernel)
+        if summary:
+            tf.summary.scalar('kernel_L2', tf.nn.l2_loss(kernel))
 
-# def dense_conv_wrapper(inputs,
-#                        num_output_channels,
-#                        kernel_size=3,
-#                        scope='default',
-#                        use_xavier=True,
-#                        stddev=1e-3,
-#                        activation='relu',
-#                        bn_decay=None,
-#                        is_training=True,
-#                        histogram=False,
-#                        summary=False):
-#     if scope == 'default':
-#         print("WARNING: scope name was not given and has been assigned as 'default' ")
-#     l2_loss_collection = "l2" # TODO: need to change the l2 loss collection for two-stage training.
-#     with tf.variable_scope(scope):
-#         num_input_channels = inputs.get_shape()[-1].value
-#         kernel_shape = [kernel_size * kernel_size * kernel_size * num_input_channels, num_output_channels]
-#         kernel = _variable_with_l2_loss(name='kernel',
-#                                         shape=kernel_shape,
-#                                         use_xavier=use_xavier,
-#                                         stddev=stddev,
-#                                         l2_loss_collection=l2_loss_collection)
-#         biases = _variable_with_l2_loss(name='biases',
-#                                         shape=[num_output_channels],
-#                                         initializer=tf.constant_initializer(0.0),
-#                                         with_l2_loss=False,
-#                                         l2_loss_collection=None)
-#         if histogram:
-#             tf.summary.histogram('kernel', kernel)
-#         if summary:
-#             tf.summary.scalar('kernel_L2', tf.nn.l2_loss(kernel))
-#
-#         voxels_to_conv = voxel2col(input_voxels=inputs, kernel_size=kernel_size)
-#         outputs = tf.matmul(voxels_to_conv, kernel)
-#
-#         if bn_decay is None:
-#             outputs = tf.nn.bias_add(outputs, biases)
-#         else:
-#             outputs = batch_norm_template(inputs=outputs,
-#                                           is_training=is_training,
-#                                           bn_decay=bn_decay,
-#                                           name='bn')
-#         if activation is not None:
-#             activation_fn_dict = {'relu': tf.nn.relu,
-#                                   'elu': tf.nn.elu,
-#                                   'leaky_relu': tf.nn.leaky_relu}
-#             activation_fn = activation_fn_dict[activation]
-#             outputs = activation_fn(outputs)
-#
-#         return outputs
+        voxels_to_conv = voxel2col(input_voxels=inputs, kernel_size=kernel_size)
+        kernel = tf.reshape(kernel, shape=[-1, num_output_channels])
+        outputs = tf.matmul(voxels_to_conv, kernel)
+
+        if bn_decay is None:
+            outputs = tf.nn.bias_add(outputs, biases)
+        else:
+            outputs = batch_norm_template(inputs=outputs,
+                                          is_training=is_training,
+                                          bn_decay=bn_decay,
+                                          name='bn',
+                                          trainable=trainable)
+        if activation is not None:
+            activation_fn_dict = {'relu': tf.nn.relu,
+                                  'elu': tf.nn.elu,
+                                  'leaky_relu': tf.nn.leaky_relu}
+            activation_fn = activation_fn_dict[activation]
+            outputs = activation_fn(outputs)
+
+    return outputs
 
 
 def fully_connected_wrapper(inputs,
@@ -195,11 +154,14 @@ def fully_connected_wrapper(inputs,
                             activation='relu',
                             bn_decay=None,
                             is_training=True,
+                            trainable=True,
                             histogram=False,
                             summary=False):
     if scope == 'default':
-        print("WARNING: scope name was not given and has been assigned as 'default' ")
-    l2_loss_collection = "l2"
+        logging.warning("Scope name was not given and has been assigned as 'default'. ")
+        l2_loss_collection = 'default'
+    else:
+        l2_loss_collection = scope.split('_')[0] + "_l2"
     with tf.variable_scope(scope):
         num_input_channels = inputs.get_shape()[-1].value
         weight_shape = [num_input_channels, num_output_channels]
@@ -207,17 +169,79 @@ def fully_connected_wrapper(inputs,
                                         shape=weight_shape,
                                         use_xavier=use_xavier,
                                         stddev=stddev,
-                                        l2_loss_collection=l2_loss_collection)
+                                        l2_loss_collection=l2_loss_collection,
+                                        trainable=trainable)
         biases = _variable_with_l2_loss(name="biases",
                                         shape=[num_output_channels],
                                         initializer=tf.constant_initializer(0.0),
                                         with_l2_loss=False,
-                                        l2_loss_collection=None)
+                                        l2_loss_collection=None,
+                                        trainable=trainable)
         if histogram:
             tf.summary.histogram('weight', weight)
         if summary:
-            tf.summary.scalar('weight_L2', tf.nn.l2_loss(weight))
+            tf.summary.scalar('weight_l2', tf.nn.l2_loss(weight))
         outputs = tf.matmul(inputs, weight)
+        if bn_decay is None:
+            outputs = tf.nn.bias_add(outputs, biases)
+        else:
+            outputs = batch_norm_template(inputs=outputs,
+                                          is_training=is_training,
+                                          bn_decay=bn_decay,
+                                          name='bn',
+                                          trainable=trainable)
+        if activation is not None:
+            activation_fn_dict = {'relu': tf.nn.relu,
+                                  'elu': tf.nn.elu,
+                                  'leaky_relu': tf.nn.leaky_relu}
+            activation_fn = activation_fn_dict[activation]
+            outputs = activation_fn(outputs)
+    return outputs
+
+def conv_3d_wrapper(inputs,
+                    num_output_channels,
+                    kernel_size=3,
+                    scope='default',
+                    use_xavier=True,
+                    stddev=1e-3,
+                    activation='relu',
+                    bn_decay=None,
+                    is_training=True,
+                    trainable=True,
+                    histogram=False,
+                    summary=False):
+    if scope == 'default':
+        logging.warning("Scope name was not given and has been assigned as 'default'. ")
+        l2_loss_collection = 'default'
+    else:
+        l2_loss_collection = scope.split('_')[0] + "_l2"
+    with tf.variable_scope(scope):
+        num_input_channels = inputs.get_shape()[-1].value
+        input_size = np.cbrt(inputs.get_shape()[-2].value).astype(np.int32)
+        reshaped_inputs = tf.reshape(inputs, shape=[-1, input_size, input_size, input_size, num_input_channels])
+        kernel_shape = [kernel_size, kernel_size, kernel_size, num_input_channels, num_output_channels]
+        kernel = _variable_with_l2_loss(name='weight',
+                                        shape=kernel_shape,
+                                        use_xavier=use_xavier,
+                                        stddev=stddev,
+                                        l2_loss_collection=l2_loss_collection,
+                                        trainable=trainable)
+        biases = _variable_with_l2_loss(name='biases',
+                                        shape=[num_output_channels],
+                                        initializer=tf.constant_initializer(0.0),
+                                        with_l2_loss=False,
+                                        l2_loss_collection=None,
+                                        trainable=trainable)
+        if histogram:
+            tf.summary.histogram('kernel', kernel)
+        if summary:
+            tf.summary.scalar('kernel_l2', tf.nn.l2_loss(kernel))
+
+        outputs = tf.nn.conv3d(input=reshaped_inputs,
+                               filter=kernel,
+                               strides=[1, 1, 1, 1, 1],
+                               padding='VALID')
+
         if bn_decay is None:
             outputs = tf.nn.bias_add(outputs, biases)
         else:
@@ -231,4 +255,22 @@ def fully_connected_wrapper(inputs,
                                   'leaky_relu': tf.nn.leaky_relu}
             activation_fn = activation_fn_dict[activation]
             outputs = activation_fn(outputs)
-        return outputs
+        output_grid_num = int(outputs.get_shape()[1].value * outputs.get_shape()[2].value * outputs.get_shape()[3].value)
+        outputs = tf.reshape(outputs, shape=[-1, output_grid_num, num_output_channels])
+
+    return outputs
+
+
+def get_roi_attrs(input_logits, base_coors, anchor_size, is_eval=False):
+    method = roi_logits_to_attrs if is_eval else roi_logits_to_attrs_tf
+    roi_attrs = method(input_logits=input_logits,
+                       base_coors=base_coors,
+                       anchor_size=anchor_size)
+    return roi_attrs
+
+
+def get_bbox_attrs(input_logits, input_roi_attrs, is_eval=False):
+    method = bbox_logits_to_attrs if is_eval else bbox_logits_to_attrs_tf
+    bbox_attrs = method(input_logits=input_logits,
+                        input_roi_attrs=input_roi_attrs)
+    return bbox_attrs

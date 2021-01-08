@@ -106,16 +106,28 @@ class DataGenerator(object):
 
 
 if __name__ == '__main__':
-    SaiKungGenerator = DataGenerator(range_x = [-11., 11.],
-                                    range_y = [-4.8, 11],
-                                    range_z = [0.5, 3.1])
+    SaiKungGenerator = DataGenerator(range_x=[-11., 11.],
+                                     range_y=[-4.8, 11],
+                                     range_z=[0.5, 3.1])
     output_coors, output_intensity, output_num_list = [], [], []
     for i in tqdm(range(1000)):
         _, coors, intensity, num_list = next(SaiKungGenerator.read_from_zmq())
-        if i % 100 == 0:
-            output_coors.append(coors)
-            output_intensity.append(intensity)
-            output_num_list.append(num_list)
-    np.save("coors.npy", output_coors)
-    np.save("intensity.npy", output_intensity)
-    np.save("num_list.npy", output_num_list)
+
+        dimension = [22., 15.8, 2.6]
+        offset = [11., 4.8, -0.5]
+
+        coors += offset
+        coors_min = np.min(coors, axis=0)
+        coors_max = np.max(coors, axis=0)
+        for j in range(3):
+            if coors_min[j] < 0 or coors_max[j] > dimension[j]:
+                print(coors_min, coors_max)
+
+
+    #     if i % 100 == 0:
+    #         output_coors.append(coors)
+    #         output_intensity.append(intensity)
+    #         output_num_list.append(num_list)
+    # np.save("coors.npy", output_coors)
+    # np.save("intensity.npy", output_intensity)
+    # np.save("num_list.npy", output_num_list)
