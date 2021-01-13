@@ -15,12 +15,20 @@ aug_config = {'nbbox': 128,
               'maximum_interior_points': 20,
               'normalization': '300'}
 
-range_x = [-11., 11.]
-range_y = [-4.8, 11]
+# range_x = [-11., 11.]
+# range_y = [-4.8, 11]
+# range_z = [0.5, 3.1]
+
+range_x = [-20., 11.]
+range_y = [-5., 12.]
 range_z = [0.5, 3.1]
 
-dimension = [22., 15.8, 2.6]
-offset = [11., 4.8, -0.5]
+# range_x = [-15., 11.]
+# range_y = [-7.5, 6.]
+# range_z = [0.5, 3.1]
+
+dimension = [31., 17., 2.6]
+offset = [20., 5., -0.5]
 
 # dimension = [36., 36., 4.]
 # offset = [18., 18., 0.]
@@ -60,7 +68,7 @@ cls_num = 4
 output_attr = 8 + cls_num
 total_epoch = 800
 
-roi_thres = 0.4
+roi_thres = 0.2
 max_roi_per_instance = 300
 roi_voxel_size = 5
 
@@ -72,3 +80,10 @@ base_params = {'base_0': {'subsample_res': 0.05, 'c_out':  16, 'kernel_res': 0.0
 rpn_params = {'subsample_res': 0.30, 'c_out': 256, 'kernel_res': 0.60, 'padding': 0.}
 refine_params = {'c_out': 256, 'kernel_size': 3, 'padding': 0.}
 
+# base_params = {'base_0': {'subsample_res': 0.10, 'c_out':  16, 'kernel_res': 0.10, 'padding': -1.},
+#                'base_1': {'subsample_res': 0.20, 'c_out':  32, 'kernel_res': 0.20, 'padding': 0.},
+#                'base_2': {'subsample_res': 0.30, 'c_out':  64, 'kernel_res': 0.30, 'padding': 0.},
+#                'base_3': {'subsample_res': 0.40, 'c_out': 128, 'kernel_res': 0.40, 'padding': 0.}}
+#
+# rpn_params = {'subsample_res': 0.60, 'c_out': 256, 'kernel_res': 0.60, 'padding': 0.}
+# refine_params = {'c_out': 256, 'kernel_size': 3, 'padding': 0.}

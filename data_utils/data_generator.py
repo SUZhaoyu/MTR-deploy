@@ -4,9 +4,13 @@ import time
 from tqdm import tqdm
 from copy import deepcopy
 from datetime import datetime
+from point_viz.converter import PointvizConverter
 import multiprocessing
 import sys
+from os.path import join
 import struct
+Converter = PointvizConverter(home='/home/akk/threejs/MTR')
+from data_utils.normalization import convert_threejs_bbox_with_prob, convert_threejs_coors
 
 
 # frame_id 4
@@ -66,15 +70,13 @@ class DataGenerator(object):
 
             ignore_idx_area_0 = get_and_sets([point_cloud[:, 0] > -6.949255957496236,
                                       point_cloud[:, 0] < 3.251014678502448,
-                                      point_cloud[:, 1] > 7.899438643537479,
+                                      point_cloud[:, 1] > 7.5,
                                       point_cloud[:, 1] < 11.001353179972943])
 
             ignore_idx_area_1 = get_and_sets([point_cloud[:, 0] > -13.027740395930584,
                                               point_cloud[:, 0] < -9.21177287224803,
                                               point_cloud[:, 1] > 7.428958051420843,
                                               point_cloud[:, 1] < 10.554803788903929])
-
-
 
             ignore_idx = get_or_sets([ignore_idx_area_0, ignore_idx_area_1])
 
@@ -106,22 +108,30 @@ class DataGenerator(object):
 
 
 if __name__ == '__main__':
-    SaiKungGenerator = DataGenerator(range_x=[-11., 11.],
-                                     range_y=[-4.8, 11],
-                                     range_z=[0.5, 3.1])
+    SaiKungGenerator = DataGenerator(range_x = [-15., 11.],
+                                    range_y = [-5., 12.],
+                                    range_z = [0.5, 3.1])
     output_coors, output_intensity, output_num_list = [], [], []
-    for i in tqdm(range(1000)):
+    for i in tqdm(range(2000)):
         _, coors, intensity, num_list = next(SaiKungGenerator.read_from_zmq())
 
-        dimension = [22., 15.8, 2.6]
-        offset = [11., 4.8, -0.5]
+        # np.savetxt(join('/home/akk/data-viz/%06d.csv'%i), coors, delimiter=",")
 
-        coors += offset
-        coors_min = np.min(coors, axis=0)
-        coors_max = np.max(coors, axis=0)
-        for j in range(3):
-            if coors_min[j] < 0 or coors_max[j] > dimension[j]:
-                print(coors_min, coors_max)
+        Converter.compile(task_name="MTR_gen_filter",
+                          coors=convert_threejs_coors(coors),
+                          intensity=intensity[:, 0],
+                          default_rgb=None)
+        break
+
+        # dimension = [22., 15.8, 2.6]
+        # offset = [11., 4.8, -0.5]
+        #
+        # coors += offset
+        # coors_min = np.min(coors, axis=0)
+        # coors_max = np.max(coors, axis=0)
+        # for j in range(3):
+        #     if coors_min[j] < 0 or coors_max[j] > dimension[j]:
+        #         print(coors_min, coors_max)
 
 
     #     if i % 100 == 0:
