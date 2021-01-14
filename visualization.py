@@ -3,6 +3,7 @@ import tensorflow as tf
 from tqdm import tqdm
 import zmq
 import logging
+from datetime import datetime
 import os
 from tensorflow.python.client import timeline
 from os.path import join
@@ -54,7 +55,7 @@ bbox_conf = tf.nn.sigmoid(bbox_conf_logits)
 bbox_cls = tf.argmax(tf.nn.softmax(bbox_cls_logits, axis=-1), axis=-1)
 
 bbox_attrs, bbox_conf, bbox_cls, nms_idx, nms_count = \
-    rotated_nms3d(bbox_attrs, bbox_conf, bbox_cls, nms_overlap_thresh=0.25, nms_conf_thres=0.25)
+    rotated_nms3d(bbox_attrs, bbox_conf, bbox_cls, nms_overlap_thresh=0.25, nms_conf_thres=0.3)
 
 
 saver = tf.train.Saver()
@@ -105,8 +106,23 @@ if __name__ == '__main__':
             c = output_cls
             pred_bboxes = np.stack([w, l, h, x, y, z, r, c], axis=-1)
             pred_bboxes = np.concatenate([pred_bboxes, np.expand_dims(output_conf, axis=-1)], axis=-1)
-            if np.isnan(np.sum(pred_bboxes)):
-                print("Warning: NaN detected!")
+
+            original_length = len(pred_bboxes)
+            if original_length > 0:
+                pred_bboxes = pred_bboxes[np.logical_not(np.isnan(np.sum(pred_bboxes, axis=-1))), :]
+                if len(pred_bboxes) != original_length:
+                    now = datetime.now()
+                    current_time = now.strftime("%m/%d/%Y-%H:%M:%S")
+                    logging.warning("Warning: NaN detected @ {}".format(current_time))
+
+            original_length = len(pred_bboxes)
+            if original_length > 0:
+                pred_bboxes = pred_bboxes[np.max(pred_bboxes[:, :3], axis=-1) < 5., :]
+                if len(pred_bboxes) != original_length:
+                    now = datetime.now()
+                    current_time = now.strftime("%m/%d/%Y-%H:%M:%S")
+                    logging.warning("Warning: Crazy dimension (>5m) detected @ {}".format(current_time))
+
 
             bbox_count = len(pred_bboxes)
             frame_id, _, lidar_timestamp, unix_timestamp = info_tag
