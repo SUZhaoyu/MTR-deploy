@@ -50,6 +50,7 @@ __global__ void get_roi_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, i
                 float bbox_y = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 4];
                 float bbox_z = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 5];
                 float bbox_r = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 6];
+                int bbox_cls = __float2int_rn(gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 7]);
                 if (bbox_l*bbox_h*bbox_w > 0) {
                     float rel_point_x = point_x - bbox_x;
                     float rel_point_y = point_y - bbox_y;
@@ -67,7 +68,11 @@ __global__ void get_roi_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, i
                         roi_bbox[input_accu_list[b]*7 + i*7 + 4] = bbox_y;
                         roi_bbox[input_accu_list[b]*7 + i*7 + 5] = bbox_z;
                         roi_bbox[input_accu_list[b]*7 + i*7 + 6] = bbox_r;
-                        roi_conf[input_accu_list[b] + i] = 1;
+                        if (bbox_cls == 0 || bbox_cls == 1) {
+                            roi_conf[input_accu_list[b] + i] = 1;
+                        } else {
+                            roi_conf[input_accu_list[b] + i] = -1;
+                        }
                     }
                 }
             }

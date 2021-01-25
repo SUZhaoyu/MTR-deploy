@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 import models.rcnn_config as config
-from models.tf_ops.custom_ops import roi_pooling, get_roi_bbox, roi_filter, get_bbox
+from models.tf_ops.custom_ops import la_roi_pooling_fast, get_roi_bbox, roi_filter, get_bbox, la_roi_pooling
 from models.utils.iou_utils import cal_3d_iou
 from models.utils.loss_utils import get_masked_average, focal_loss
 from models.utils.model_layers import point_conv, fully_connected, conv_3d
@@ -109,22 +109,24 @@ def stage2_model(coors,
                  is_eval,
                  mem_saving,
                  bn):
-    instance_max = 0 if is_eval else config.max_roi_per_instance
     with tf.variable_scope("stage2"):
         roi_conf = tf.nn.sigmoid(roi_conf_logits)
         bbox_roi_attrs, bbox_num_list, bbox_idx = roi_filter(input_roi_attrs=roi_attrs,
                                                              input_roi_conf=roi_conf,
                                                              input_num_list=roi_num_list,
                                                              conf_thres=config.roi_thres,
-                                                             instance_max=instance_max)
+                                                             max_length=0,
+                                                             with_negative=False)
 
-        bbox_voxels = roi_pooling(input_coors=coors,
-                                  input_features=features,
-                                  roi_attrs=bbox_roi_attrs,
-                                  input_num_list=num_list,
-                                  roi_num_list=bbox_num_list,
-                                  voxel_size=config.roi_voxel_size,
-                                  pooling_size=5.)
+        bbox_voxels = la_roi_pooling_fast(input_coors=coors,
+                                          input_features=features,
+                                          roi_attrs=bbox_roi_attrs,
+                                          input_num_list=num_list,
+                                          roi_num_list=bbox_num_list,
+                                          dimension=config.dimension,
+                                          offset=config.offset,
+                                          voxel_size=config.roi_voxel_size,
+                                          pooling_size=8)
 
         for i in range(config.roi_voxel_size // 2):
             bbox_voxels = conv_3d(input_voxels=bbox_voxels,

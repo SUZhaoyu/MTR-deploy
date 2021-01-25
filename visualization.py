@@ -51,8 +51,11 @@ bbox_attrs, bbox_conf_logits, bbox_cls_logits, bbox_num_list, bbox_idx = \
                        is_eval=True,
                        mem_saving=False,
                        bn=1.)
+
+
 bbox_conf = tf.nn.sigmoid(bbox_conf_logits)
-bbox_cls = tf.argmax(tf.nn.softmax(bbox_cls_logits, axis=-1), axis=-1)
+bbox_cls_conf = tf.nn.softmax(bbox_cls_logits, axis=-1)
+bbox_cls = tf.argmax(bbox_cls_conf, axis=-1)
 
 bbox_attrs, bbox_conf, bbox_cls, nms_idx, nms_count = \
     rotated_nms3d(bbox_attrs, bbox_conf, bbox_cls, nms_overlap_thresh=0.25, nms_conf_thres=0.3)
@@ -83,8 +86,8 @@ if __name__ == '__main__':
         # for _ in tqdm(range(100000)):
             info_tag, batch_input_coors, batch_input_features, batch_input_num_list = \
                 next(SaiKungDataGenerator.read_from_zmq())
-            output_attrs, output_conf, output_cls, output_coors, output_idx, output_count = \
-                sess.run([bbox_attrs, bbox_conf, bbox_cls, roi_coors, nms_idx, nms_count],
+            output_attrs, output_conf, output_cls_conf, output_cls, output_coors, output_idx, output_count = \
+                sess.run([bbox_attrs, bbox_conf, bbox_cls_conf, bbox_cls, roi_coors, nms_idx, nms_count],
                          feed_dict={input_coors_p: batch_input_coors,
                                     input_features_p: batch_input_features,
                                     input_num_list_p: batch_input_num_list,
@@ -93,8 +96,8 @@ if __name__ == '__main__':
             output_idx = output_idx[:output_count[0]]
             output_bboxes = output_attrs[output_idx]
             output_conf = output_conf[output_idx]
+            output_cls_conf = output_cls_conf[output_idx]
             output_cls = output_cls[output_idx]
-            # print(len(output_idx))
 
             w = output_bboxes[:, 0]
             l = output_bboxes[:, 1]
@@ -105,7 +108,7 @@ if __name__ == '__main__':
             r = output_bboxes[:, 6]
             c = output_cls
             pred_bboxes = np.stack([w, l, h, x, y, z, r, c], axis=-1)
-            pred_bboxes = np.concatenate([pred_bboxes, np.expand_dims(output_conf, axis=-1)], axis=-1)
+            pred_bboxes = np.concatenate([pred_bboxes, np.expand_dims(output_conf, axis=-1), output_cls_conf], axis=-1)
 
             original_length = len(pred_bboxes)
             if original_length > 0:

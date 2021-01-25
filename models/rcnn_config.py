@@ -64,7 +64,7 @@ activation = 'relu'
 num_worker = 3
 weighted = False
 use_l2 = True
-cls_num = 4
+cls_num = 2
 output_attr = 8 + cls_num
 total_epoch = 800
 
@@ -73,9 +73,9 @@ max_roi_per_instance = 300
 roi_voxel_size = 5
 
 base_params = {'base_0': {'subsample_res': 0.05, 'c_out':  16, 'kernel_res': 0.05, 'padding': -1.},
-               'base_1': {'subsample_res': 0.10, 'c_out':  32, 'kernel_res': 0.10, 'padding': 0.},
-               'base_2': {'subsample_res': 0.15, 'c_out':  64, 'kernel_res': 0.20, 'padding': 0.},
-               'base_3': {'subsample_res': 0.20, 'c_out': 128, 'kernel_res': 0.40, 'padding': 0.}}
+               'base_1': {'subsample_res': 0.10, 'c_out':  32, 'kernel_res': 0.10, 'padding':  0.},
+               'base_2': {'subsample_res': 0.15, 'c_out':  64, 'kernel_res': 0.20, 'padding':  0.},
+               'base_3': {'subsample_res': 0.20, 'c_out': 128, 'kernel_res': 0.40, 'padding':  0.}}
 
 rpn_params = {'subsample_res': 0.30, 'c_out': 256, 'kernel_res': 0.60, 'padding': 0.}
 refine_params = {'c_out': 256, 'kernel_size': 3, 'padding': 0.}

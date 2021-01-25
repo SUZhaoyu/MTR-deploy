@@ -47,7 +47,7 @@ __global__ void get_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int b
                 float bbox_y = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 4];
                 float bbox_z = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 5];
                 float bbox_r = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 6];
-                float cls = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 7];
+                int cls = __float2int_rn(gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 7]);
 
                 if (bbox_l*bbox_h*bbox_w > 0) {
                     float rel_roi_x = roi_x - bbox_x;
@@ -66,10 +66,12 @@ __global__ void get_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int b
                         bbox[input_accu_list[b]*7 + i*7 + 4] = bbox_y;
                         bbox[input_accu_list[b]*7 + i*7 + 5] = bbox_z;
                         bbox[input_accu_list[b]*7 + i*7 + 6] = bbox_r;
-
-                        bbox_conf[input_accu_list[b] + i] = 1;
-                        bbox_cls[input_accu_list[b]*cls_num + i*cls_num + (int)floor(cls)] = 1;
-
+                        if (cls == 0 || cls == 1) {
+                            bbox_conf[input_accu_list[b] + i] = 1;
+                        } else {
+                            bbox_conf[input_accu_list[b] + i] = -1;
+                        }
+                        bbox_cls[input_accu_list[b]*cls_num + i*cls_num + cls] = 1;
                     }
                 }
             }

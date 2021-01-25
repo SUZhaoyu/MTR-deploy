@@ -108,30 +108,29 @@ class DataGenerator(object):
 
 
 if __name__ == '__main__':
-    SaiKungGenerator = DataGenerator(range_x = [-15., 11.],
-                                    range_y = [-5., 12.],
-                                    range_z = [0.5, 3.1])
+    SaiKungGenerator = DataGenerator(range_x = [-20., 11.],
+                                     range_y = [-5., 12.],
+                                     range_z = [0.5, 3.1])
     output_coors, output_intensity, output_num_list = [], [], []
-    for i in tqdm(range(2000)):
+    for i in tqdm(range(20000)):
         _, coors, intensity, num_list = next(SaiKungGenerator.read_from_zmq())
 
         # np.savetxt(join('/home/akk/data-viz/%06d.csv'%i), coors, delimiter=",")
 
-        Converter.compile(task_name="MTR_gen_filter",
-                          coors=convert_threejs_coors(coors),
-                          intensity=intensity[:, 0],
-                          default_rgb=None)
-        break
+        # Converter.compile(task_name="MTR_gen_filter",
+        #                   coors=convert_threejs_coors(coors),
+        #                   intensity=intensity[:, 0],
+        #                   default_rgb=None)
 
-        # dimension = [22., 15.8, 2.6]
-        # offset = [11., 4.8, -0.5]
-        #
-        # coors += offset
-        # coors_min = np.min(coors, axis=0)
-        # coors_max = np.max(coors, axis=0)
-        # for j in range(3):
-        #     if coors_min[j] < 0 or coors_max[j] > dimension[j]:
-        #         print(coors_min, coors_max)
+        dimension = [31., 17., 2.6]
+        offset = [20., 5., -0.5]
+
+        coors += offset
+        coors_min = np.min(coors, axis=0)
+        coors_max = np.max(coors, axis=0)
+        for j in range(3):
+            if coors_min[j] < 0 or coors_max[j] > dimension[j]:
+                print(coors_min, coors_max)
 
 
     #     if i % 100 == 0:
