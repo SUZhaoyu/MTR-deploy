@@ -33,7 +33,7 @@ offset = [20., 5., -0.5]
 # dimension = [36., 36., 4.]
 # offset = [18., 18., 0.]
 
-anchor_size = [0.6, 0.6, 1.6]
+anchor_size = [0.8, 0.8, 1.6]
 
 local = False
 
@@ -68,7 +68,7 @@ cls_num = 2
 output_attr = 8 + cls_num
 total_epoch = 800
 
-roi_thres = 0.2
+roi_thres = 0.5
 max_roi_per_instance = 300
 roi_voxel_size = 5
 

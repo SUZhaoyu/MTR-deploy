@@ -23,7 +23,7 @@ SaiKungDataGenerator = DataGenerator(range_x=config.range_x,
                                      range_y=config.range_y,
                                      range_z=config.range_z)
 
-model_path = '/home/akk/MTR-deploy/checkpoint/model'
+model_path = '/home/akk/MTR-deploy/ckpt_test/model'
 
 input_coors_p, input_features_p, input_num_list_p, _ = model.stage1_inputs_placeholder()
 is_training_p = tf.placeholder(dtype=tf.bool, shape=[], name='is_training')
