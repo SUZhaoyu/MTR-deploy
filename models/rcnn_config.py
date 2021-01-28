@@ -19,6 +19,7 @@ aug_config = {'nbbox': 128,
 # range_y = [-4.8, 11]
 # range_z = [0.5, 3.1]
 
+# FIXME: The range is based on the old coor sys
 range_x = [-20., 11.]
 range_y = [-5., 12.]
 range_z = [0.5, 3.1]
@@ -27,8 +28,11 @@ range_z = [0.5, 3.1]
 # range_y = [-7.5, 6.]
 # range_z = [0.5, 3.1]
 
-dimension = [31., 17., 2.6]
-offset = [20., 5., -0.5]
+# dimension = [31., 17., 2.6]
+# offset = [20., 5., -0.5]
+# FIXME: The dimension and offset is based on the new coor sys
+dimension = [32., 20., 4.0]
+offset = [20., 6., 0.5]
 
 # dimension = [36., 36., 4.]
 # offset = [18., 18., 0.]

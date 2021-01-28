@@ -349,7 +349,7 @@ def voxel_sampling_binary_grad(op, grad, _):
 # ============================================= NMS ===============================================
 
 iou3d_kernel_gpu_exe = tf.load_op_library(join(CWD, 'build', 'iou3d_kernel.so'))
-def rotated_nms3d(bbox_attrs, bbox_conf, bbox_cls, nms_overlap_thresh, nms_conf_thres=0.3):
+def rotated_nms3d(bbox_attrs, bbox_conf, bbox_cls_conf, bbox_cls, nms_overlap_thresh, nms_conf_thres=0.3):
     '''
     rotated nms of the output
     :param boxes: the set of bounding boxes (sorted in decending order based on a score, e.g. confidence)
@@ -366,12 +366,14 @@ def rotated_nms3d(bbox_attrs, bbox_conf, bbox_cls, nms_overlap_thresh, nms_conf_
     bbox_attrs = tf.gather(bbox_attrs, valid_idx, axis=0)
     bbox_conf = tf.gather(bbox_conf, valid_idx, axis=0)
     bbox_cls = tf.gather(bbox_cls, valid_idx, axis=0)
+    bbox_cls_conf = tf.gather(bbox_cls_conf, valid_idx, axis=0)
 
 
     sorted_idx = tf.argsort(bbox_conf, direction='DESCENDING')
     sorted_bbox_attrs = tf.gather(bbox_attrs, sorted_idx, axis=0)
     sorted_bbox_conf = tf.gather(bbox_conf, sorted_idx, axis=0)
     sorted_bbox_cls = tf.gather(bbox_cls, sorted_idx, axis=0)
+    sorted_bbox_cls_conf = tf.gather(bbox_cls_conf, sorted_idx, axis=0)
 
     bbox_dimensions = sorted_bbox_attrs[:, :3]
     bbox_coors = sorted_bbox_attrs[:, 3:6]
@@ -384,7 +386,7 @@ def rotated_nms3d(bbox_attrs, bbox_conf, bbox_cls, nms_overlap_thresh, nms_conf_
 
 
 
-    return sorted_bbox_attrs, sorted_bbox_conf, sorted_bbox_cls, output_keep_index, output_num_to_keep
+    return sorted_bbox_attrs, sorted_bbox_conf, sorted_bbox_cls_conf, sorted_bbox_cls, output_keep_index, output_num_to_keep
 
 
 ops.NoGradient("RotatedNms3d")
