@@ -78,7 +78,7 @@ __global__ void roi_pooling_register_gpu_kernel(int batch_size, int max_batch_in
             float grid_length_x = roi_w / voxel_size;
             float grid_length_y = roi_l / voxel_size;
             float grid_length_z = roi_h / voxel_size;
-            float radius = max(max(grid_length_x, grid_length_y), grid_length_z);
+            float radius = max(grid_length_x, grid_length_y);
 
             float rel_grid_x = grid_coor_x * grid_length_x;
             float rel_grid_y = grid_coor_y * grid_length_y;

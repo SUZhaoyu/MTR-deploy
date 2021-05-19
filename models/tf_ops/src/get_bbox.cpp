@@ -22,42 +22,41 @@ REGISTER_OP("GetBboxOp")
     .Input("input_num_list: int32")
     .Output("bbox: float32")
     .Output("bbox_conf: int32")
-    .Output("bbox_cls: int32")
+    .Output("bbox_diff: int32")
     .Attr("expand_ratio: float")
-    .Attr("cls_num: int")
+    .Attr("diff_thres: int")
+    .Attr("cls_thres: int")
     .SetShapeFn([](InferenceContext* c){
         ShapeHandle roi_base_coors_shape;
         TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 2, &roi_base_coors_shape));
 
-        int cls_num;
-        TF_RETURN_IF_ERROR(c->GetAttr("cls_num", &cls_num));
-
         DimensionHandle npoint = c->Dim(roi_base_coors_shape, 0);
+        // The npoint here works as the placeholder, not the actual number of output_points.
         ShapeHandle bbox_shape = c->MakeShape({npoint, 7});
         ShapeHandle bbox_conf_shape = c->MakeShape({npoint});
-        ShapeHandle bbox_cls_shape = c->MakeShape({npoint, cls_num});
         c->set_output(0, bbox_shape);
         c->set_output(1, bbox_conf_shape);
-        c->set_output(2, bbox_cls_shape);
+        c->set_output(2, bbox_conf_shape);
 
         return Status::OK();
 
     }); // InferenceContext
 
-void get_bbox_gpu_launcher(int batch_size, int npoint, int nbbox, int bbox_attr, float expand_ratio, int cls_num,
+void get_bbox_gpu_launcher(int batch_size, int npoint, int nbbox, int bbox_attr, int diff_thres, int cls_thres, float expand_ratio,
                            const float* roi_attrs,
                            const float* gt_bbox,
                            const int* input_num_list,
                            int* input_accu_list,
                            float* bbox,
                            int* bbox_conf,
-                           int* bbox_cls);
+                           int* bbox_diff);
 
 class GetBboxOp: public OpKernel {
 public:
     explicit GetBboxOp(OpKernelConstruction* context): OpKernel(context)
     {
-        OP_REQUIRES_OK(context, context->GetAttr("cls_num", &cls_num));
+        OP_REQUIRES_OK(context, context->GetAttr("diff_thres", &diff_thres));
+        OP_REQUIRES_OK(context, context->GetAttr("cls_thres", &cls_thres));
         OP_REQUIRES_OK(context, context->GetAttr("expand_ratio", &expand_ratio));
     }
     void Compute(OpKernelContext* context) override {
@@ -69,8 +68,8 @@ public:
 
         const Tensor& gt_bbox = context->input(1);
         auto gt_bbox_ptr = gt_bbox.template flat<float>().data();
-        OP_REQUIRES(context, gt_bbox.dim_size(2) == 8,
-                    errors::InvalidArgument("Attribute of bbox has to be 9: [w, l, h, x, y, z, r, cls]."));
+        OP_REQUIRES(context, gt_bbox.dim_size(2) == 9,
+                    errors::InvalidArgument("Attribute of bbox has to be 9: [w, l, h, x, y, z, r, cls, diff_idx]."));
 
         const Tensor& input_num_list = context->input(2);
         auto input_num_list_ptr = input_num_list.template flat<int>().data();
@@ -101,23 +100,23 @@ public:
         int* bbox_conf_ptr = bbox_conf->template flat<int>().data();
         cudaMemset(bbox_conf_ptr, 0, npoint * sizeof(int));
 
-        Tensor* bbox_cls = nullptr;
-        auto bbox_cls_shape = TensorShape({npoint, cls_num});
-        OP_REQUIRES_OK(context, context->allocate_output(2, bbox_cls_shape, &bbox_cls));
-        int* bbox_cls_ptr = bbox_cls->template flat<int>().data();
-        cudaMemset(bbox_cls_ptr, 0, npoint * cls_num * sizeof(int));
+        Tensor* bbox_diff = nullptr;
+        auto bbox_diff_shape = TensorShape({npoint});
+        OP_REQUIRES_OK(context, context->allocate_output(2, bbox_diff_shape, &bbox_diff));
+        int* bbox_diff_ptr = bbox_diff->template flat<int>().data();
+        cudaMemset(bbox_diff_ptr, 0, npoint * sizeof(int));
 
-        get_bbox_gpu_launcher(batch_size, npoint, nbbox, bbox_attr, expand_ratio, cls_num,
+        get_bbox_gpu_launcher(batch_size, npoint, nbbox, bbox_attr, diff_thres, cls_thres, expand_ratio,
                                      roi_attrs_ptr,
                                      gt_bbox_ptr,
                                      input_num_list_ptr,
                                      input_accu_list_ptr,
                                      bbox_ptr,
                                      bbox_conf_ptr,
-                                     bbox_cls_ptr);
+                                     bbox_diff_ptr);
     }
 private:
-    int cls_num;
+    int diff_thres, cls_thres;
     float expand_ratio;
 };
 REGISTER_KERNEL_BUILDER(Name("GetBboxOp").Device(DEVICE_GPU), GetBboxOp);

@@ -9,14 +9,14 @@
 #include <iostream>
 #define USECPSEC 1000000ULL
 
-__global__ void get_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int bbox_attr, float expand_ratio, int cls_num,
+__global__ void get_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int bbox_attr, int diff_thres, int cls_thres, float expand_ratio,
                                    const float* roi_attrs,
                                    const float* gt_bbox,
                                    const int* input_num_list,
                                    int* input_accu_list,
                                    float* bbox,
                                    int* bbox_conf,
-                                   int* bbox_cls) {
+                                   int* bbox_diff) {
     if (batch_size * nbbox * bbox_attr <=0 || npoint <=0) {
 //        printf("Get Bbox Logits Op exited unexpectedly.\n");
         return;
@@ -36,7 +36,7 @@ __global__ void get_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int b
             float roi_y = roi_attrs[input_accu_list[b]*7 + i*7 + 4];
             float roi_z = roi_attrs[input_accu_list[b]*7 + i*7 + 5];
             bbox_conf[input_accu_list[b] + i] = 0;
-            bbox_cls[input_accu_list[b]*cls_num + i*cls_num + 0] = 1;
+            bbox_diff[input_accu_list[b] + i] = -1;
             for (int j=0; j<nbbox; j++) {
             // [w, l, h, x, y, z, r, cls, diff_idx]
             //  0  1  2  3  4  5  6   7      8
@@ -47,7 +47,8 @@ __global__ void get_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int b
                 float bbox_y = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 4];
                 float bbox_z = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 5];
                 float bbox_r = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 6];
-                int cls = __float2int_rn(gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 7]);
+                float bbox_cls = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 7];
+                float diff = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 8];
 
                 if (bbox_l*bbox_h*bbox_w > 0) {
                     float rel_roi_x = roi_x - bbox_x;
@@ -66,12 +67,17 @@ __global__ void get_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int b
                         bbox[input_accu_list[b]*7 + i*7 + 4] = bbox_y;
                         bbox[input_accu_list[b]*7 + i*7 + 5] = bbox_z;
                         bbox[input_accu_list[b]*7 + i*7 + 6] = bbox_r;
-                        if (cls == 0 || cls == 1) {
+
+//                        if (diff <= diff_thres && bbox_cls == 0) {
+                        if (diff <= diff_thres && bbox_cls <= cls_thres) {
+                            // Here we only take cars into consideration, while vans are excluded and give the foreground labels as -1 (ignored).
                             bbox_conf[input_accu_list[b] + i] = 1;
-                        } else {
-                            bbox_conf[input_accu_list[b] + i] = -1;
+                            bbox_diff[input_accu_list[b] + i] = diff;
                         }
-                        bbox_cls[input_accu_list[b]*cls_num + i*cls_num + cls] = 1;
+                        else {
+                            bbox_conf[input_accu_list[b] + i] = -1;
+                            bbox_diff[input_accu_list[b] + i] = -1;
+                        }
                     }
                 }
             }
@@ -87,23 +93,23 @@ long long dtime_usec(unsigned long long start){
 }
 
 
-void get_bbox_gpu_launcher(int batch_size, int npoint, int nbbox, int bbox_attr, float expand_ratio, int cls_num,
+void get_bbox_gpu_launcher(int batch_size, int npoint, int nbbox, int bbox_attr, int diff_thres, int cls_thres, float expand_ratio,
                           const float* roi_attrs,
                           const float* gt_bbox,
                           const int* input_num_list,
                           int* input_accu_list,
                           float* bbox,
                           int* bbox_conf,
-                          int* bbox_cls) {
+                          int* bbox_diff) {
 //    long long dt = dtime_usec(0);
-    get_bbox_gpu_kernel<<<32,512>>>(batch_size, npoint, nbbox, bbox_attr, expand_ratio, cls_num,
+    get_bbox_gpu_kernel<<<32,512>>>(batch_size, npoint, nbbox, bbox_attr, diff_thres, cls_thres, expand_ratio,
                                            roi_attrs,
                                            gt_bbox,
                                            input_num_list,
                                            input_accu_list,
                                            bbox,
                                            bbox_conf,
-                                           bbox_cls);
+                                           bbox_diff);
 //    dt = dtime_usec(dt);
 //	std::cout << "Voxel Sample (forward) CUDA time: " << dt/(float)USECPSEC << "s" << std::endl;
 }

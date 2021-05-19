@@ -24,10 +24,12 @@ using ::tensorflow::shape_inference::ShapeHandle;
 
 REGISTER_OP("RoiFilterOp")
     .Input("input_roi_conf: float32")
+    .Input("input_roi_ious: float32")
     .Input("input_num_list: int32")
     .Output("output_num_list: int32")
     .Output("output_idx: int32")
     .Attr("conf_thres: float")
+    .Attr("iou_thres: float")
     .Attr("max_length: int")
     .Attr("with_negative: bool")
     .SetShapeFn([](InferenceContext* c){
@@ -54,6 +56,7 @@ class RoiFilterOp: public OpKernel {
 public:
     explicit RoiFilterOp(OpKernelConstruction* context): OpKernel(context) {
         OP_REQUIRES_OK(context, context->GetAttr("conf_thres", &conf_thres));
+        OP_REQUIRES_OK(context, context->GetAttr("iou_thres", &iou_thres));
         OP_REQUIRES_OK(context, context->GetAttr("max_length", &max_length));
         OP_REQUIRES_OK(context, context->GetAttr("with_negative", &with_negative));
     }
@@ -64,14 +67,19 @@ public:
         OP_REQUIRES(context, input_roi_conf.dims()==1,
                     errors::InvalidArgument("RoIFilterOp expects input_roi_conf in shape: [npoints]."));
 
-        const Tensor& input_num_list = context->input(1);
+        const Tensor& input_roi_ious = context->input(1);
+        auto input_roi_ious_ptr = input_roi_ious.template flat<float>().data();
+        OP_REQUIRES(context, input_roi_ious.dims()==1,
+                    errors::InvalidArgument("RoIFilterOp expects input_roi_ious in shape: [npoints]."));
+
+        const Tensor& input_num_list = context->input(2);
         auto input_num_list_ptr = input_num_list.template flat<int>().data();
         OP_REQUIRES(context, input_num_list.dims()==1,
                     errors::InvalidArgument("RoIFilterOp expects input_num_list in shape: [batch_size]."));
 //
         int input_point_num = input_roi_conf.dim_size(0);
         int batch_size = input_num_list.dim_size(0);
-        max_length = (max_length > 0) ? max_length : 100000;
+        max_length = (max_length > 0) ? max_length : 500;
         std::vector<int> output_idx_list;
 
         int* input_accu_list_ptr = (int*)malloc(batch_size * sizeof(int));
@@ -95,24 +103,34 @@ public:
                 id_list[i] = i;
             std::random_shuffle(id_list.begin(), id_list.end());
 
-            for (int i=0; i<input_num_list_ptr[b]; i++) {
-                int id = input_accu_list_ptr[b] + id_list[i];
-                if (with_negative) {
-                    if (input_roi_conf_ptr[id] >= conf_thres && positive_count < max_length / 2) {
-                        if (positive_count >= max_length / 4 && input_roi_conf_ptr[id] > 0.75)
-                            continue;
+
+            if (with_negative) {
+                for (int i=0; i<input_num_list_ptr[b]; i++) {
+                    int id = input_accu_list_ptr[b] + id_list[i];
+                    if (input_roi_conf_ptr[id] >= conf_thres &&
+                        positive_count < max_length / 2 &&
+                        input_roi_ious_ptr[id] >= iou_thres) {
                         output_num_list_ptr[b] += 1;
                         positive_count += 1;
                         output_idx_list.push_back(id);
                     }
-                    if (input_roi_conf_ptr[id] < conf_thres && negative_count < max_length / 2) {
-                        if (negative_count >= max_length / 4 && input_roi_conf_ptr[id] < 0.25)
-                            continue;
+                }
+
+                for (int i=0; i<input_num_list_ptr[b]; i++) {
+                    int id = input_accu_list_ptr[b] + id_list[i];
+                    if (input_roi_conf_ptr[id] >= conf_thres &&
+                        negative_count < max_length / 2 &&
+                        input_roi_ious_ptr[id] < iou_thres &&
+                        negative_count < positive_count) {
                         output_num_list_ptr[b] += 1;
                         negative_count += 1;
                         output_idx_list.push_back(id);
                     }
-                } else {
+                }
+//                printf("Positive count=%d, negative count=%d\n", positive_count, negative_count);
+            } else {
+                for (int i=0; i<input_num_list_ptr[b]; i++) {
+                    int id = input_accu_list_ptr[b] + id_list[i];
                     if (input_roi_conf_ptr[id] >= conf_thres) {
                         output_num_list_ptr[b] += 1;
                         positive_count += 1;
@@ -120,6 +138,38 @@ public:
                     }
                 }
             }
+
+
+
+//            for (int i=0; i<input_num_list_ptr[b]; i++) {
+//                int id = input_accu_list_ptr[b] + id_list[i];
+//                if (with_negative) {
+//                    if (input_roi_conf_ptr[id] >= conf_thres &&
+//                        positive_count < max_length / 2 &&
+//                        input_roi_ious_ptr[id] >= iou_thres) {
+//                        output_num_list_ptr[b] += 1;
+//                        positive_count += 1;
+//                        output_idx_list.push_back(id);
+//                    }
+//                    if (input_roi_conf_ptr[id] >= conf_thres &&
+//                        negative_count < max_length / 2 &&
+//                        input_roi_ious_ptr[id] < iou_thres) {
+//                        output_num_list_ptr[b] += 1;
+//                        negative_count += 1;
+//                        output_idx_list.push_back(id);
+//                    }
+//                } else {
+//                    if (input_roi_conf_ptr[id] >= conf_thres && positive_count < max_length) {
+//                        output_num_list_ptr[b] += 1;
+//                        positive_count += 1;
+//                        output_idx_list.push_back(id);
+//                    }
+//                }
+//            }
+
+
+
+
         }
         free(input_accu_list_ptr);
 
@@ -133,7 +183,7 @@ public:
         }
     }
 private:
-    float conf_thres;
+    float conf_thres, iou_thres;
     int max_length;
     bool with_negative;
 }; // OpKernel

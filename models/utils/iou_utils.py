@@ -1,4 +1,3 @@
-import math
 import tensorflow as tf
 
 # Ground Truth Shape: [npoint, 7 (w, l, h, x, y, z, r)]
@@ -19,27 +18,52 @@ eps = tf.constant(1e-6)
 
 
 
+# def roi_logits_to_attrs_tf(base_coors, input_logits, anchor_size):
+#     anchor_diag = tf.sqrt(tf.pow(anchor_size[0], 2.) + tf.pow(anchor_size[1], 2.))
+#     w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * anchor_size[0], 0., 1e5)
+#     l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * anchor_size[1], 0., 1e5)
+#     h = tf.clip_by_value(tf.exp(input_logits[:, 2]) * anchor_size[2], 0., 1e5)
+#     x = tf.clip_by_value(input_logits[:, 3] * anchor_diag + base_coors[:, 0], -1e5, 1e5)
+#     y = tf.clip_by_value(input_logits[:, 4] * anchor_diag + base_coors[:, 1], -1e5, 1e5)
+#     z = tf.clip_by_value(input_logits[:, 5] * anchor_size[2] + base_coors[:, 2], -1e5, 1e5)
+#     r = input_logits[:, 6] * 3.1415927
+#     return tf.stack([w, l, h, x, y, z, r], axis=-1)
+
 def roi_logits_to_attrs_tf(base_coors, input_logits, anchor_size):
     anchor_diag = tf.sqrt(tf.pow(anchor_size[0], 2.) + tf.pow(anchor_size[1], 2.))
-    w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * anchor_size[0], 0., 1e5)
-    l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * anchor_size[1], 0., 1e5)
-    h = tf.clip_by_value(tf.exp(input_logits[:, 2]) * anchor_size[2], 0., 1e5)
-    x = tf.clip_by_value(input_logits[:, 3] * anchor_diag + base_coors[:, 0], -1e5, 1e5)
-    y = tf.clip_by_value(input_logits[:, 4] * anchor_diag + base_coors[:, 1], -1e5, 1e5)
-    z = tf.clip_by_value(input_logits[:, 5] * anchor_size[2] + base_coors[:, 2], -1e5, 1e5)
-    r = input_logits[:, 6]
+    w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * anchor_size[0], 0., 1e7)
+    l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * anchor_size[1], 0., 1e7)
+    h = tf.clip_by_value(tf.exp(input_logits[:, 2]) * anchor_size[2], 0., 1e7)
+    x = tf.clip_by_value(input_logits[:, 3] * anchor_diag + base_coors[:, 0], -1e7, 1e7)
+    y = tf.clip_by_value(input_logits[:, 4] * anchor_diag + base_coors[:, 1], -1e7, 1e7)
+    z = tf.clip_by_value(input_logits[:, 5] * anchor_size[2] + base_coors[:, 2], -1e7, 1e7)
+    r = tf.clip_by_value(input_logits[:, 6] * 3.1415927, -1e7, 1e7)
+    # r = input_logits[:, 6]
     return tf.stack([w, l, h, x, y, z, r], axis=-1)
+
+
+def roi_attrs_to_logits(base_coors, input_attrs, anchor_size):
+    anchor_diag = tf.sqrt(tf.pow(anchor_size[0], 2.) + tf.pow(anchor_size[1], 2.))
+    logits_w = tf.log(input_attrs[:, 0] / anchor_size[0])
+    logits_l = tf.log(input_attrs[:, 1] / anchor_size[1])
+    logits_h = tf.log(input_attrs[:, 2] / anchor_size[2])
+    logits_x = (input_attrs[:, 3] - base_coors[:, 0]) / anchor_diag
+    logits_y = (input_attrs[:, 4] - base_coors[:, 1]) / anchor_diag
+    logits_z = (input_attrs[:, 5] - base_coors[:, 2]) / anchor_size[2]
+    logits_r = input_attrs[:, 6] / 3.1415927
+    return tf.stack([logits_w, logits_l, logits_h, logits_x, logits_y, logits_z, logits_r], axis=-1)
 
 
 def bbox_logits_to_attrs_tf(input_roi_attrs, input_logits):
     roi_diag = tf.sqrt(tf.pow(input_roi_attrs[:, 0], 2.) + tf.pow(input_roi_attrs[:, 1], 2.))
-    w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * input_roi_attrs[:, 0], 0., 1e5)
-    l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * input_roi_attrs[:, 1], 0., 1e5)
-    h = tf.clip_by_value(tf.exp(input_logits[:, 2]) * input_roi_attrs[:, 2], 0., 1e5)
-    x = tf.clip_by_value(input_logits[:, 3] * roi_diag + input_roi_attrs[:, 3], -1e5, 1e5)
-    y = tf.clip_by_value(input_logits[:, 4] * roi_diag + input_roi_attrs[:, 4], -1e5, 1e5)
-    z = tf.clip_by_value(input_logits[:, 5] * input_roi_attrs[:, 2] + input_roi_attrs[:, 5], -1e5, 1e5)
-    r = input_logits[:, 6] + input_roi_attrs[:, 6]
+    w = tf.clip_by_value(tf.exp(input_logits[:, 0]) * input_roi_attrs[:, 0], 0., 1e7)
+    l = tf.clip_by_value(tf.exp(input_logits[:, 1]) * input_roi_attrs[:, 1], 0., 1e7)
+    h = tf.clip_by_value(tf.exp(input_logits[:, 2]) * input_roi_attrs[:, 2], 0., 1e7)
+    x = tf.clip_by_value(input_logits[:, 3] * roi_diag + input_roi_attrs[:, 3], -1e7, 1e7)
+    y = tf.clip_by_value(input_logits[:, 4] * roi_diag + input_roi_attrs[:, 4], -1e7, 1e7)
+    z = tf.clip_by_value(input_logits[:, 5] * input_roi_attrs[:, 2] + input_roi_attrs[:, 5], -1e7, 1e7)
+    r = tf.clip_by_value(input_logits[:, 6] * 3.1415927 + input_roi_attrs[:, 6], -1e7, 1e7)
+    # r = input_logits[:, 6] + input_roi_attrs[:, 6]
     return tf.stack([w, l, h, x, y, z, r], axis=-1)
 
 
@@ -172,10 +196,12 @@ def clockwise_sorting(input_points, masks):
     angles = tf.math.atan2(det + eps, dot + eps)  # [n, 24] -pi~pi
     angles_masks = (0.5 - (masks - 0.5)) * 1000.  # [n, 24]
     masked_angles = angles + angles_masks  # [n, 24]
-    _, sort_idx = tf.nn.top_k(-masked_angles, k=input_points.get_shape().as_list()[1], sorted=True)  # [n, 24]
+    # _, sort_idx = tf.nn.top_k(-masked_angles, k=input_points.get_shape().as_list()[1], sorted=True)  # [n, 24]
+    _, sort_idx = tf.nn.top_k(-masked_angles, k=tf.shape(input_points)[1], sorted=True)  # [n, 24]
 
-    batch_id = tf.range(start=0, limit=tf.shape(input_points)[0], dtype=tf.int32)
-    batch_ids = tf.stack([batch_id] * input_points.get_shape().as_list()[1], axis=1)
+    batch_id = tf.expand_dims(tf.range(start=0, limit=tf.shape(input_points)[0], dtype=tf.int32), axis=1)
+    # batch_ids = tf.stack([batch_id] * input_points.get_shape().as_list()[1], axis=1)
+    batch_ids = tf.tile(batch_id, [1, tf.shape(input_points)[1]])
     sort_idx = tf.stack([batch_ids, sort_idx], axis=-1)  # [n, 24, 2]
 
     sorted_points = tf.gather_nd(input_points, sort_idx)
@@ -224,7 +250,17 @@ def get_3d_iou_from_area(gt_attrs, pred_attrs, intersection_2d_area, intersectio
     # tf.summary.scalar('iou_nan_sum',
     #                   hvd.allreduce(tf.reduce_sum(tf.cast(tf.is_nan(iou), dtype=tf.float32)), average=False))
     if clip:
-        iou = tf.where(tf.is_nan(iou), tf.ones_like(iou), iou)
+        iou = tf.where(tf.is_nan(iou), tf.zeros_like(iou), iou)
+    return iou
+
+def get_bev_iou_from_area(gt_attrs, pred_attrs, intersection_2d_area, clip):
+    gt_area = gt_attrs[:, 0] * gt_attrs[:, 1]
+    pred_area = pred_attrs[:, 0] * pred_attrs[:, 1]
+    iou = tf.math.divide_no_nan(intersection_2d_area, gt_area + pred_area - intersection_2d_area)
+    # tf.summary.scalar('iou_nan_sum',
+    #                   hvd.allreduce(tf.reduce_sum(tf.cast(tf.is_nan(iou), dtype=tf.float32)), average=False))
+    if clip:
+        iou = tf.where(tf.is_nan(iou), tf.zeros_like(iou), iou)
     return iou
 
 
@@ -248,6 +284,25 @@ def cal_3d_iou(gt_attrs, pred_attrs, clip=False):
 
     return ious
 
+def cal_bev_iou(gt_attrs, pred_attrs, clip=False):
+    gt_v, rel_rot_pred_v, rel_rot_gt_v, rel_xy, rel_r = get_2d_vertex_points(gt_attrs, pred_attrs)
+    intersection_points = get_2d_intersection_points(gt_attrs=gt_attrs, rel_rot_pred_v=rel_rot_pred_v)
+    gt_vertex_points_inside_pred = get_interior_vertex_points_mask(target_attrs=pred_attrs, input_points=rel_rot_gt_v)
+    pred_vertex_points_inside_gt = get_interior_vertex_points_mask(target_attrs=gt_attrs, input_points=rel_rot_pred_v)
+    pred_intersect_with_gt = get_intersection_points_mask(target_attrs=gt_attrs, input_points=intersection_points)
+    intersection_points_inside_pred = get_intersection_points_mask(target_attrs=pred_attrs,
+                                                                   input_points=intersection_points, rel_xy=rel_xy,
+                                                                   rel_r=rel_r)
+    total_points = tf.concat([gt_v, rel_rot_pred_v, intersection_points], axis=1)
+    total_masks = tf.concat([gt_vertex_points_inside_pred, pred_vertex_points_inside_gt,
+                             pred_intersect_with_gt * intersection_points_inside_pred], axis=1)
+    sorted_points, sorted_masks = clockwise_sorting(input_points=total_points, masks=total_masks)
+
+    intersection_2d_area = shoelace_intersection_area(sorted_points, sorted_masks)
+    ious = get_bev_iou_from_area(gt_attrs, pred_attrs, intersection_2d_area, clip)
+
+    return ious
+
 
 def cal_3d_iou_debug(gt_attrs, pred_attrs, clip=False):
     gt_v, rel_rot_pred_v, rel_rot_gt_v, rel_xy, rel_r = get_2d_vertex_points(gt_attrs, pred_attrs)
@@ -267,4 +322,4 @@ def cal_3d_iou_debug(gt_attrs, pred_attrs, clip=False):
     intersection_height = get_intersection_height(gt_attrs, pred_attrs)
     ious = get_3d_iou_from_area(gt_attrs, pred_attrs, intersection_2d_area, intersection_height, clip)
 
-    return ious
+    return ious, intersection_2d_area

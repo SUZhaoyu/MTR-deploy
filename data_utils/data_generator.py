@@ -83,21 +83,14 @@ class DataGenerator(object):
             if len(point_cloud) != point_count:
                 logging.warning("Number of actual input point is different from buffer head ({} vs. {}) @ {}"
                                 .format(len(point_cloud), point_count, datetime.fromtimestamp(unix_timestamp)))
-            point_cloud[:, :3] *= [1., -1., -1]
-            point_cloud[:, 2] += 3.3215672969818115
-            # point_cloud[:, 2] *= -1
 
-            ignore_idx_area_0 = get_and_sets([point_cloud[:, 0] > -6.949255957496236,
-                                              point_cloud[:, 0] < 3.251014678502448,
-                                              point_cloud[:, 1] > 7.5,
-                                              point_cloud[:, 1] < 11.001353179972943])
+            ignore_idx_area_0 = get_and_sets([point_cloud[:, 0] > -35.31440735,
+                                              point_cloud[:, 0] < 3.20188427,
+                                              point_cloud[:, 1] > 7.34207726,
+                                              point_cloud[:, 1] < 10.93907928])
 
-            ignore_idx_area_1 = get_and_sets([point_cloud[:, 0] > -13.027740395930584,
-                                              point_cloud[:, 0] < -9.21177287224803,
-                                              point_cloud[:, 1] > 7.428958051420843,
-                                              point_cloud[:, 1] < 10.554803788903929])
 
-            ignore_idx = get_or_sets([ignore_idx_area_0, ignore_idx_area_1])
+            ignore_idx = get_or_sets([ignore_idx_area_0])
 
             keep_idx = get_and_sets([point_cloud[:, 0] > self.range_x[0],
                                      point_cloud[:, 0] < self.range_x[1],
@@ -117,40 +110,38 @@ class DataGenerator(object):
             point_cloud = point_cloud[keep_idx, :]
             coors = point_cloud[:, :3]
 
-            coors[:, 2] -= 3.3215672969818115
-            coors[:, :3] *= [1., -1., -1]
-            coors[:, :3] = np.matmul(tr_m, np.transpose(coors[:, :3])).transpose()
-            coors[:, 2] += 2.63
-            intensity = feature_normalize(point_cloud[:, 4:5], method=300.)
+
+
+            intensity = feature_normalize(point_cloud[:, 4:5], method=None)
             num_list = np.array([len(coors)])
 
             yield info_tag, coors, intensity, num_list
 
 
 if __name__ == '__main__':
-    SaiKungGenerator = DataGenerator(range_x=[-20., 11.],
-                                     range_y=[-5., 12.],
-                                     range_z=[0.5, 3.1])
+    SaiKungGenerator = DataGenerator(range_x=[-32., 10.9],
+                                     range_y=[-15.9, 10.8],
+                                     range_z=[-0.5, 2.1])
     output_coors, output_intensity, output_num_list = [], [], []
-    for i in tqdm(range(20000)):
+    for i in tqdm(range(1)):
         _, coors, intensity, num_list = next(SaiKungGenerator.read_from_zmq())
 
         # np.savetxt(join('/home/akk/data-viz/%06d.csv'%i), coors, delimiter=",")
 
-        # Converter.compile(task_name="MTR_gen_filter",
-        #                   coors=convert_threejs_coors(coors),
-        #                   intensity=intensity[:, 0],
-        #                   default_rgb=None)
+        Converter.compile(task_name="MTR_gen_filter",
+                          coors=convert_threejs_coors(coors),
+                          intensity=intensity[:, 0],
+                          default_rgb=None)
 
-        dimension = [32., 20., 4.0]
-        offset = [20., 6., 0.5]
-
-        coors += offset
-        coors_min = np.min(coors, axis=0)
-        coors_max = np.max(coors, axis=0)
-        for j in range(3):
-            if coors_min[j] < 0 or coors_max[j] > dimension[j]:
-                print(coors_min, coors_max)
+        # dimension = [50., 30., 6.]
+        # offset = [35., 15., 2.]
+        #
+        # coors += offset
+        # coors_min = np.min(coors, axis=0)
+        # coors_max = np.max(coors, axis=0)
+        # for j in range(3):
+        #     if coors_min[j] < 0 or coors_max[j] > dimension[j]:
+        #         print(coors_min, coors_max)
 
     #     if i % 100 == 0:
     #         output_coors.append(coors)

@@ -10,14 +10,15 @@
 #define USECPSEC 1000000ULL
 
 __global__ void get_roi_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, int bbox_attr,
-                                            float expand_ratio,
+                                            int diff_thres, int cls_thres, float expand_ratio,
                                             const float* input_coors,
                                             const float* gt_bbox,
                                             const int* input_num_list,
                                             const float* anchor_size,
                                             int* input_accu_list,
                                             float* roi_bbox,
-                                            int* roi_conf) {
+                                            int* roi_conf,
+                                            int* roi_diff) {
     if (batch_size * nbbox * bbox_attr <=0 || npoint <=0) {
 //        printf("Get RoI Logits Op exited unexpectedly.\n");
         return;
@@ -40,6 +41,7 @@ __global__ void get_roi_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, i
             float point_y = input_coors[input_accu_list[b]*3 + i*3 + 1];
             float point_z = input_coors[input_accu_list[b]*3 + i*3 + 2];
             roi_conf[input_accu_list[b] + i] = 0;
+            roi_diff[input_accu_list[b] + i] = 0;
             for (int j=0; j<nbbox; j++) {
             // [w, l, h, x, y, z, r, cls, diff_idx]
             //  0  1  2  3  4  5  6   7      8
@@ -50,7 +52,8 @@ __global__ void get_roi_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, i
                 float bbox_y = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 4];
                 float bbox_z = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 5];
                 float bbox_r = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 6];
-                int bbox_cls = __float2int_rn(gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 7]);
+                float bbox_cls = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 7];
+                float bbox_diff = gt_bbox[b*nbbox*bbox_attr + j*bbox_attr + 8];
                 if (bbox_l*bbox_h*bbox_w > 0) {
                     float rel_point_x = point_x - bbox_x;
                     float rel_point_y = point_y - bbox_y;
@@ -68,10 +71,16 @@ __global__ void get_roi_bbox_gpu_kernel(int batch_size, int npoint, int nbbox, i
                         roi_bbox[input_accu_list[b]*7 + i*7 + 4] = bbox_y;
                         roi_bbox[input_accu_list[b]*7 + i*7 + 5] = bbox_z;
                         roi_bbox[input_accu_list[b]*7 + i*7 + 6] = bbox_r;
-                        if (bbox_cls == 0 || bbox_cls == 1) {
+
+//                        if (bbox_diff <= diff_thres && bbox_cls == 0) {
+                        if (bbox_diff <= diff_thres && bbox_cls <= cls_thres) {
+                            // Here we only take cars into consideration, while vans are excluded and give the foreground labels as -1 (ignored).
+                            // TODO: need to change the category class accordingly to the expected detection target.
                             roi_conf[input_accu_list[b] + i] = 1;
-                        } else {
+                            roi_diff[input_accu_list[b] + i] = bbox_cls;
+                        }else{
                             roi_conf[input_accu_list[b] + i] = -1;
+                            roi_diff[input_accu_list[b] + i] = 0;
                         }
                     }
                 }
@@ -88,24 +97,26 @@ long long dtime_usec(unsigned long long start){
 }
 
 void get_roi_bbox_gpu_launcher(int batch_size, int npoint, int nbbox, int bbox_attr,
-                               float expand_ratio,
-                                 const float* input_coors,
-                                 const float* gt_bbox,
-                                 const int* input_num_list,
-                                 const float* anchor_size,
-                                 int* input_accu_list,
-                                 float* roi_bbox,
-                                 int* roi_conf) {
+                               int diff_thres, int cls_thres, float expand_ratio,
+                               const float* input_coors,
+                               const float* gt_bbox,
+                               const int* input_num_list,
+                               const float* anchor_size,
+                               int* input_accu_list,
+                               float* roi_bbox,
+                               int* roi_conf,
+                               int* roi_diff) {
     long long dt = dtime_usec(0);
     get_roi_bbox_gpu_kernel<<<32,512>>>(batch_size, npoint, nbbox, bbox_attr,
-                                        expand_ratio,
+                                          diff_thres, cls_thres, expand_ratio,
                                           input_coors,
                                           gt_bbox,
                                           input_num_list,
                                           anchor_size,
                                           input_accu_list,
                                           roi_bbox,
-                                          roi_conf);
+                                          roi_conf,
+                                          roi_diff);
     dt = dtime_usec(dt);
 //	std::cout << "Voxel Sample (forward) CUDA time: " << dt/(float)USECPSEC << "s" << std::endl;
 }

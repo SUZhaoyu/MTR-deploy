@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 aug_config = {'nbbox': 128,
-              'rotate_range': np.pi * 2,
+              'rotate_range': 0,
               'rotate_mode': 'u',
               'scale_range': 0.05,
               'scale_mode': 'u',
@@ -11,33 +11,29 @@ aug_config = {'nbbox': 128,
               'flip': False,
               'shuffle': True,
               'paste_augmentation': True,
-              'paste_instance_num': 16,
+              'paste_instance_num': 64,
               'maximum_interior_points': 20,
-              'normalization': '300'}
+              'normalization': None}
 
-# range_x = [-11., 11.]
-# range_y = [-4.8, 11]
-# range_z = [0.5, 3.1]
+range_x = [-32., 10.9]
+range_y = [-15.9, 10.8]
+range_z = [-0.5, 2.1]
 
-# FIXME: The range is based on the old coor sys
-range_x = [-20., 11.]
-range_y = [-5., 12.]
-range_z = [0.5, 3.1]
+dimension_training = [50., 30., 6.]
+offset_training = [35., 15., 2.]
 
-# range_x = [-15., 11.]
-# range_y = [-7.5, 6.]
-# range_z = [0.5, 3.1]
+# dimension_training = [100., 100., 9.]
+# offset_training = [10., 10., 5.]
 
-# dimension = [31., 17., 2.6]
-# offset = [20., 5., -0.5]
-# FIXME: The dimension and offset is based on the new coor sys
-dimension = [32., 20., 4.0]
-offset = [20., 6., 0.5]
+# dimension_training = [72, 80.0, 4.]
+# offset_training = [2., 40.0, 3.]
 
-# dimension = [36., 36., 4.]
-# offset = [18., 18., 0.]
+anchor_size = [0.6, 0.6, 1.6]
+grid_buffer_size = 3
+output_pooling_size = 5
 
-anchor_size = [0.8, 0.8, 1.6]
+diff_thres = 3
+cls_thres = 2
 
 local = False
 
@@ -50,44 +46,46 @@ config_dir = os.path.join(model_file_dir, model_file_name)
 
 bbox_padding = aug_config['nbbox']
 batch_size = 4
-decay_epochs = 20
-init_lr = 1e-4
+decay_epochs = 5
+
+init_lr_stage1 = 1e-3
+lr_scale_stage1 = True
+
+init_lr_stage2 = 2e-4
+lr_scale_stage2 = False
+
 lr_decay = 0.5
-lr_scale = True
-lr_warm_up = False
+lr_warm_up = True
 cls_loss_scale = 1.
-weight_decay = 1e-3
+weight_decay = 5e-4
 valid_interval = 5
 use_trimmed_foreground = False
-paste_augmentation = True
+paste_augmentation = False
 use_la_pooling = False
 norm_angle = False
-xavier = True
+xavier = False
 stddev = 1e-3
 activation = 'relu'
-num_worker = 3
+normalization = None
+num_worker = 6
 weighted = False
 use_l2 = True
-cls_num = 2
-output_attr = 8 + cls_num
-total_epoch = 800
+output_attr = 8
+# stage1_training_epoch = 25
+total_epoch = 300
 
-roi_thres = 0.5
-max_roi_per_instance = 300
+roi_thres = 0.3
+iou_thres = 0.55
+max_length = 256
 roi_voxel_size = 5
 
-base_params = {'base_0': {'subsample_res': 0.05, 'c_out':  16, 'kernel_res': 0.05, 'padding': -1.},
-               'base_1': {'subsample_res': 0.10, 'c_out':  32, 'kernel_res': 0.10, 'padding':  0.},
-               'base_2': {'subsample_res': 0.15, 'c_out':  64, 'kernel_res': 0.20, 'padding':  0.},
-               'base_3': {'subsample_res': 0.20, 'c_out': 128, 'kernel_res': 0.40, 'padding':  0.}}
+base_params_inference = {'base_0': {'subsample_res': 0.05, 'c_out':  16, 'kernel_res': 0.05, 'concat': False},
+                         'base_1': {'subsample_res': 0.10, 'c_out':  16, 'kernel_res': 0.10, 'concat': True},
+                         'base_2': {'subsample_res': 0.20, 'c_out':  32, 'kernel_res': 0.20, 'concat': True},
+                         'base_3': {'subsample_res': 0.30, 'c_out':  64, 'kernel_res': [0.20, 0.20, 0.40], 'concat': True},
+                         'base_4': {'subsample_res': None, 'c_out': 128, 'kernel_res': [0.40, 0.40, 0.60], 'concat': True}}
 
-rpn_params = {'subsample_res': 0.30, 'c_out': 256, 'kernel_res': 0.60, 'padding': 0.}
+
+
 refine_params = {'c_out': 256, 'kernel_size': 3, 'padding': 0.}
 
-# base_params = {'base_0': {'subsample_res': 0.10, 'c_out':  16, 'kernel_res': 0.10, 'padding': -1.},
-#                'base_1': {'subsample_res': 0.20, 'c_out':  32, 'kernel_res': 0.20, 'padding': 0.},
-#                'base_2': {'subsample_res': 0.30, 'c_out':  64, 'kernel_res': 0.30, 'padding': 0.},
-#                'base_3': {'subsample_res': 0.40, 'c_out': 128, 'kernel_res': 0.40, 'padding': 0.}}
-#
-# rpn_params = {'subsample_res': 0.60, 'c_out': 256, 'kernel_res': 0.60, 'padding': 0.}
-# refine_params = {'c_out': 256, 'kernel_size': 3, 'padding': 0.}

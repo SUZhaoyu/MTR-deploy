@@ -23,7 +23,10 @@ REGISTER_OP("GetRoiBboxOp")
     .Input("anchor_size: float32")
     .Output("roi_bbox: float32")
     .Output("roi_conf: int32")
+    .Output("roi_diff: int32")
     .Attr("expand_ratio: float")
+    .Attr("diff_thres: int")
+    .Attr("cls_thres: int")
     .SetShapeFn([](InferenceContext* c){
         ShapeHandle input_coors_shape;
         TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 2, &input_coors_shape));
@@ -31,26 +34,31 @@ REGISTER_OP("GetRoiBboxOp")
         DimensionHandle npoint = c->Dim(input_coors_shape, 0);
         ShapeHandle roi_bbox_shape = c->MakeShape({npoint, 7});
         ShapeHandle roi_conf_shape = c->MakeShape({npoint});
+        ShapeHandle roi_diff_shape = c->MakeShape({npoint});
         c->set_output(0, roi_bbox_shape);
         c->set_output(1, roi_conf_shape);
+        c->set_output(2, roi_diff_shape);
 
         return Status::OK();
 
     }); // InferenceContext
 
 void get_roi_bbox_gpu_launcher(int batch_size, int npoint, int nbbox, int bbox_attr,
-                               float expand_ratio,
-                                 const float* input_coors,
-                                 const float* gt_bbox,
-                                 const int* input_num_list,
-                                 const float* anchor_size,
-                                 int* input_accu_list,
-                                 float* roi_bbox,
-                                 int* roi_conf);
+                               int diff_thres, int cls_thres, float expand_ratio,
+                               const float* input_coors,
+                               const float* gt_bbox,
+                               const int* input_num_list,
+                               const float* anchor_size,
+                               int* input_accu_list,
+                               float* roi_bbox,
+                               int* roi_conf,
+                               int* roi_diff);
 
 class GetRoiBboxOp: public OpKernel {
 public:
     explicit GetRoiBboxOp(OpKernelConstruction* context): OpKernel(context) {
+        OP_REQUIRES_OK(context, context->GetAttr("diff_thres", &diff_thres));
+        OP_REQUIRES_OK(context, context->GetAttr("cls_thres", &cls_thres));
         OP_REQUIRES_OK(context, context->GetAttr("expand_ratio", &expand_ratio));
     }
     void Compute(OpKernelContext* context) override {
@@ -61,8 +69,8 @@ public:
 
         const Tensor& gt_bbox = context->input(1);
         auto gt_bbox_ptr = gt_bbox.template flat<float>().data();
-        OP_REQUIRES(context, gt_bbox.dim_size(2)==8,
-                    errors::InvalidArgument("Attribute of bbox has to be 9: [l, h, w, x, y, z, r, cls]."));
+        OP_REQUIRES(context, gt_bbox.dim_size(2)==9,
+                    errors::InvalidArgument("Attribute of bbox has to be 9: [l, h, w, x, y, z, r, cls, diff_idx]."));
 
         const Tensor& input_num_list = context->input(2);
         auto input_num_list_ptr = input_num_list.template flat<int>().data();
@@ -98,18 +106,26 @@ public:
         int* roi_conf_ptr = roi_conf->template flat<int>().data();
         cudaMemset(roi_conf_ptr, 0, npoint * sizeof(int));
 
+        Tensor* roi_diff = nullptr;
+        auto roi_diff_shape = TensorShape({npoint});
+        OP_REQUIRES_OK(context, context->allocate_output(2, roi_diff_shape, &roi_diff));
+        int* roi_diff_ptr = roi_diff->template flat<int>().data();
+        cudaMemset(roi_diff_ptr, 0, npoint * sizeof(int));
+
         get_roi_bbox_gpu_launcher(batch_size, npoint, nbbox, bbox_attr,
-                                  expand_ratio,
+                                   diff_thres, cls_thres, expand_ratio,
                                    input_coors_ptr,
                                    gt_bbox_ptr,
                                    input_num_list_ptr,
                                    anchor_size_ptr,
                                    input_accu_list_ptr,
                                    roi_bbox_ptr,
-                                   roi_conf_ptr);
+                                   roi_conf_ptr,
+                                   roi_diff_ptr);
 
     }
 private:
+    int diff_thres, cls_thres;
     float expand_ratio;
 };
 REGISTER_KERNEL_BUILDER(Name("GetRoiBboxOp").Device(DEVICE_GPU), GetRoiBboxOp);

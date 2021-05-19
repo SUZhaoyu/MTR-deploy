@@ -28,7 +28,7 @@ __device__ int binary_search(const long long* input_voxel_idx,
 }
 
 __global__ void voxel_sampling_binary_gpu_kernel(int batch_size, int input_npoint, int channels,
-                                        int output_ncenter, int kernel_size,
+                                        int center_num, int kernel_size,
                                         float dim_w, float dim_l, float dim_h,
                                         float resolution, float padding,
                                         const float* input_coors,
@@ -42,14 +42,14 @@ __global__ void voxel_sampling_binary_gpu_kernel(int batch_size, int input_npoin
                                         float* output_features,
                                         int* output_idx) {
 
-    if (batch_size*input_npoint <=0 || channels * output_ncenter <= 0) {
+    if (batch_size*input_npoint <=0 || channels * center_num <= 0) {
 //        printf("Voxel sample Op exited unexpectedly.\n");
         return;
     }
 	const int half_kernel_size = (kernel_size - 1) / 2;
 	const float radius = 1.5 * resolution;
 	const float r2 = radius * radius;
-	const int ngrid = kernel_size * kernel_size * kernel_size;
+	const int kernel_num = kernel_size * kernel_size * kernel_size;
 	const int center_offset = kernel_size * kernel_size * half_kernel_size + \
                               kernel_size * half_kernel_size + \
                               half_kernel_size;
@@ -61,10 +61,10 @@ __global__ void voxel_sampling_binary_gpu_kernel(int batch_size, int input_npoin
 
 	for (int b=blockIdx.x; b<batch_size; b+=gridDim.x) {
 	    for (int i=threadIdx.x; i<center_num_list[b]; i+=blockDim.x) {
-	        for (int j=0; j<ngrid; j++) {
-	            output_idx[center_accu_list[b]*ngrid + i*ngrid + j] = -1;
+	        for (int j=0; j<kernel_num; j++) {
+	            output_idx[center_accu_list[b]*kernel_num + i*kernel_num + j] = -1;
 	            for (int u=0; u<channels; u++) {
-	                output_features[center_accu_list[b]*ngrid*channels + i*ngrid*channels + j*channels + u] = padding;
+	                output_features[center_accu_list[b]*kernel_num*channels + i*kernel_num*channels + j*channels + u] = padding;
 	            }
 	        }
 	    }
@@ -128,7 +128,7 @@ __global__ void voxel_sampling_binary_gpu_kernel(int batch_size, int input_npoin
                                 int x_coor = __float2int_rz(dx / resolution + 0.5 * fabsf(dx) / dx);
                                 int y_coor = __float2int_rz(dy / resolution + 0.5 * fabsf(dy) / dy);
                                 int z_coor = __float2int_rz(dz / resolution + 0.5 * fabsf(dz) / dz);
-                                int voxel_coor = center_accu_list[b] * ngrid + i * ngrid + center_offset + \
+                                int voxel_coor = center_accu_list[b] * kernel_num + i * kernel_num + center_offset + \
                                                  kernel_size * kernel_size * x_coor + \
                                                  kernel_size * y_coor + \
                                                  z_coor;
@@ -148,25 +148,25 @@ __global__ void voxel_sampling_binary_gpu_kernel(int batch_size, int input_npoin
 }
 
 
-__global__ void voxel_sampling_binary_grad_gpu_kernel(int output_ncenter, int ngrid, int channels,
+__global__ void voxel_sampling_binary_grad_gpu_kernel(int center_num, int kernel_num, int channels,
                                                      const int* output_idx,
                                                      const float* output_features_grad,
                                                      float* input_features_grad) {
-    int batch_size = __float2int_ru((float)output_ncenter / blockDim.x);
-    if (output_ncenter==0 || ngrid*channels == 0) {
+    int batch_size = __float2int_ru((float)center_num / blockDim.x);
+    if (center_num==0 || kernel_num*channels == 0) {
         printf("Voxel sample grad Op exited unexpectedly.\n");
         return;
     }
     for (int b=blockIdx.x; b<batch_size; b+=gridDim.x) {
 //        for (int i=threadIdx.x; b*blockDim.x + i < ncenters; i+=blockDim.x) {}
         int center_id = b*blockDim.x + threadIdx.x;
-        if (center_id < output_ncenter) {
-            for (int i=0; i<ngrid; i++) {
-                int voxel_coor = center_id*ngrid + i;
+        if (center_id < center_num) {
+            for (int i=0; i<kernel_num; i++) {
+                int voxel_coor = center_id*kernel_num + i;
                 int id = output_idx[voxel_coor];
                 if (id != -1) {
 //                    if (id > 1000000)
-//                        printf("************VoxelSamplingBinaryOpId: %d@[voxel_coor=%d, center_id=%d, i=%d, output_ncenter=%d]\n", id, voxel_coor, center_id, i, output_ncenter);
+//                        printf("************VoxelSamplingBinaryOpId: %d@[voxel_coor=%d, center_id=%d, i=%d, center_num=%d]\n", id, voxel_coor, center_id, i, center_num);
                      for (int c=0; c<channels; c++) {
                         atomicAdd(&input_features_grad[id*channels + c], output_features_grad[voxel_coor*channels + c]);
                      }
@@ -185,7 +185,7 @@ long long dtime_usec(unsigned long long start){
 
 
 void voxel_sampling_binary_gpu_launcher(int batch_size, int input_npoint, int channels,
-                               int output_ncenter, int kernel_size,
+                               int center_num, int kernel_size,
                                float dim_w, float dim_l, float dim_h,
                                float resolution, float padding,
                                const float* input_coors,
@@ -200,7 +200,7 @@ void voxel_sampling_binary_gpu_launcher(int batch_size, int input_npoint, int ch
                                int* output_idx) {
     long long dt = dtime_usec(0);
     voxel_sampling_binary_gpu_kernel<<<32,512>>>(batch_size, input_npoint, channels,
-                                        output_ncenter, kernel_size,
+                                        center_num, kernel_size,
                                         dim_w, dim_l, dim_h,
                                         resolution, padding,
                                         input_coors,
@@ -220,11 +220,11 @@ void voxel_sampling_binary_gpu_launcher(int batch_size, int input_npoint, int ch
 }
 
 
-void voxel_sampling_binary_grad_gpu_launcher(int output_ncenter, int ngrid, int channels,
+void voxel_sampling_binary_grad_gpu_launcher(int center_num, int kernel_num, int channels,
                                              const int* output_idx,
                                             const float* output_features_grad,
                                              float* input_features_grad) {
-    voxel_sampling_binary_grad_gpu_kernel<<<32, 512>>>(output_ncenter, ngrid, channels,
+    voxel_sampling_binary_grad_gpu_kernel<<<32, 512>>>(center_num, kernel_num, channels,
                                                        output_idx,
                                                        output_features_grad,
                                                        input_features_grad);

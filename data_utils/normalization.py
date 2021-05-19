@@ -153,7 +153,7 @@ def convert_threejs_bbox_with_prob(bboxes):
         if box[0] * box[1] * box[2] > 0:
             threejs_bbox = [0] * 9
             threejs_bbox[:7] = box[:7]
-            threejs_bbox[-1] = category_dict[int(box[-2])] + ', ' + "%.2f" % box[-1]
+            threejs_bbox[-1] = category_dict[int(box[7])] + ', ' + "%.2f" % box[9+int(box[7])]
             # threejs_bbox[-1] = "%.2f" % box[6]
             threejs_bbox[-2] = "Red"
             threejs_bboxes.append(threejs_bbox)

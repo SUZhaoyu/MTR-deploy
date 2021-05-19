@@ -14,6 +14,10 @@
           <mappings>
             <mapping deploy="/home/akk/MTR-deploy" local="$PROJECT_DIR$" />
           </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="/checkpoint" />
+            <excludedPath path="/checkpoint" />
+          </excludedPaths>
         </serverdata>
       </paths>
     </serverData>
