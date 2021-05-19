@@ -27,7 +27,7 @@ SaiKungDataGenerator = DataGenerator(range_x=config.range_x,
                                      range_y=config.range_y,
                                      range_z=config.range_z)
 
-model_path = '/home/akk/MTR-deploy/checkpoint/model'
+model_path = '/home/akk/MTR-deploy/checkpoint-cls/model_0.6689047517789147'
 
 input_coors_p, input_features_p, input_num_list_p, _ = model.stage1_inputs_placeholder()
 is_training_p = tf.placeholder(dtype=tf.bool, shape=[], name='is_training')
@@ -44,7 +44,7 @@ coors, features, num_list, roi_coors, roi_attrs, roi_conf_logits, cls_logits, ro
                        bn=1.)
 
 roi_conf = tf.nn.sigmoid(roi_conf_logits)
-nms_idx = rotated_nms3d_idx(roi_attrs, roi_conf, nms_overlap_thresh=0.05, nms_conf_thres=0.7)
+nms_idx = rotated_nms3d_idx(roi_attrs, roi_conf, nms_overlap_thresh=0.15, nms_conf_thres=0.5)
 roi_coors = tf.gather(roi_coors, nms_idx, axis=0)
 roi_attrs = tf.gather(roi_attrs, nms_idx, axis=0)
 cls_logits = tf.gather(cls_logits, nms_idx, axis=0)
@@ -93,8 +93,8 @@ if __name__ == '__main__':
                                     input_features_p: batch_input_features,
                                     input_num_list_p: batch_input_num_list,
                                     is_training_p: False})
+
             output_idx = output_conf > 0.8
-            # output_idx = output_idx[:output_count[0]]
             output_bboxes = output_attrs[output_idx]
             output_conf = output_conf[output_idx]
             output_cls_conf = output_cls_conf[output_idx]
@@ -111,7 +111,7 @@ if __name__ == '__main__':
             r = output_bboxes[:, 6]
             c = output_cls
             for i in range(len(c)):
-                if c[i] > 0 and output_cls_conf[i, c[i]] <= 0.8:
+                if c[i] > 0 and output_cls_conf[i, c[i]] <= 0.7:
                     c[i] = 0
             pred_bboxes = np.stack([w, l, h, x, y, z, r, c], axis=-1)
             pred_bboxes = np.concatenate([pred_bboxes, np.expand_dims(output_conf, axis=-1), output_cls_conf], axis=-1)
@@ -169,7 +169,7 @@ if __name__ == '__main__':
             # with open('timeline.json', 'w') as f:
             #  f.write(ctf)
 
-            #
+
             # input_rgbs = np.zeros_like(batch_input_coors) + [255, 255, 255]
             # output_rgbs = np.zeros_like(output_coors) + [255, 0, 0]
             # plot_coors = np.concatenate([batch_input_coors, output_coors], axis=0)

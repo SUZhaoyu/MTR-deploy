@@ -62,7 +62,7 @@ bbox_attrs, bbox_conf_logits, bbox_dir_logits, bbox_cls_logits, bbox_num_list, b
 
 
 bbox_conf = tf.nn.sigmoid(bbox_conf_logits)
-nms_idx = rotated_nms3d_idx(bbox_attrs, bbox_conf, nms_overlap_thresh=0.25, nms_conf_thres=0.6)
+nms_idx = rotated_nms3d_idx(bbox_attrs, bbox_conf, nms_overlap_thresh=0.2, nms_conf_thres=0.3)
 bbox_attrs = tf.gather(bbox_attrs, nms_idx, axis=0)
 bbox_conf_logits = tf.gather(bbox_conf_logits, nms_idx, axis=0)
 bbox_dir_logits = tf.gather(bbox_dir_logits, nms_idx, axis=0)
@@ -105,10 +105,9 @@ if __name__ == '__main__':
                                     input_num_list_p: batch_input_num_list,
                                     is_training_p: False})
 
-            output_idx = output_conf > 0.6
+            output_idx = output_conf > 0.5
             output_bboxes = output_attrs[output_idx]
             output_conf = output_conf[output_idx]
-            output_cls_conf = output_cls_conf[output_idx]
             output_cls_conf = output_cls_conf[output_idx]
             output_cls = output_cls[output_idx]
             output_dir = output_dir[output_idx]
@@ -177,8 +176,8 @@ if __name__ == '__main__':
             # output_rgbs = np.zeros_like(output_coors) + [255, 0, 0]
             # plot_coors = np.concatenate([batch_input_coors, output_coors], axis=0)
             # plot_rgbs = np.concatenate([input_rgbs, output_rgbs], axis=0)
-
-
+            #
+            #
             # pred_bbox_params = convert_threejs_bbox_with_prob(pred_bboxes) if len(
             #     pred_bboxes) > 0 else []
             # task_name = "ID_%06d" % (frame_id)

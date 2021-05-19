@@ -15,8 +15,10 @@ aug_config = {'nbbox': 128,
               'maximum_interior_points': 20,
               'normalization': None}
 
-range_x = [-32., 10.9]
+# range_x = [-32., 10.9]
+range_x = [-32., 8.]
 range_y = [-15.9, 10.8]
+# range_y = [-4., 10.8]
 range_z = [-0.5, 2.1]
 
 dimension_training = [50., 30., 6.]
@@ -74,18 +76,26 @@ output_attr = 8
 # stage1_training_epoch = 25
 total_epoch = 300
 
-roi_thres = 0.3
-iou_thres = 0.55
-max_length = 256
+roi_thres = 0.7
+iou_thres = 0.3
+max_length = 512
 roi_voxel_size = 5
 
-base_params_inference = {'base_0': {'subsample_res': 0.05, 'c_out':  16, 'kernel_res': 0.05, 'concat': False},
-                         'base_1': {'subsample_res': 0.10, 'c_out':  16, 'kernel_res': 0.10, 'concat': True},
-                         'base_2': {'subsample_res': 0.20, 'c_out':  32, 'kernel_res': 0.20, 'concat': True},
-                         'base_3': {'subsample_res': 0.30, 'c_out':  64, 'kernel_res': [0.20, 0.20, 0.40], 'concat': True},
-                         'base_4': {'subsample_res': None, 'c_out': 128, 'kernel_res': [0.40, 0.40, 0.60], 'concat': True}}
+# base_params_inference = {'base_0': {'subsample_res': 0.05, 'c_out':  16, 'kernel_res': 0.05, 'concat': False},
+#                          'base_1': {'subsample_res': 0.10, 'c_out':  16, 'kernel_res': 0.10, 'concat': True},
+#                          'base_2': {'subsample_res': 0.20, 'c_out':  32, 'kernel_res': 0.20, 'concat': True},
+#                          'base_3': {'subsample_res': 0.30, 'c_out':  64, 'kernel_res': [0.20, 0.20, 0.40], 'concat': True},
+#                          'base_4': {'subsample_res': None, 'c_out': 128, 'kernel_res': [0.40, 0.40, 0.60], 'concat': True}}
 
+base_params_inference = {'base_0': {'subsample_res': 0.05, 'c_out':  16, 'kernel_res': 0.05, 'concat': True},
+                         'base_1': {'subsample_res': 0.10, 'c_out':  16, 'kernel_res': 0.10, 'concat': False},
+                         'base_2': {'subsample_res': None, 'c_out':  16, 'kernel_res': 0.10, 'concat': True},
+                         'base_3': {'subsample_res': 0.20, 'c_out':  32, 'kernel_res': 0.20, 'concat': False},
+                         'base_4': {'subsample_res': None, 'c_out':  32, 'kernel_res': 0.20, 'concat': True},
+                         'base_5': {'subsample_res': 0.30, 'c_out':  64, 'kernel_res': [0.20, 0.20, 0.40], 'concat': False},
+                         'base_6': {'subsample_res': None, 'c_out':  64, 'kernel_res': [0.20, 0.20, 0.40], 'concat': True},
+                         'base_7': {'subsample_res': None, 'c_out': 128, 'kernel_res': [0.40, 0.40, 0.60], 'concat': False},
+                         'base_8': {'subsample_res': None, 'c_out': 128, 'kernel_res': [0.40, 0.40, 0.60], 'concat': True}}
 
 
 refine_params = {'c_out': 256, 'kernel_size': 3, 'padding': 0.}
-

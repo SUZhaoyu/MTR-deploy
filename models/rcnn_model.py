@@ -146,12 +146,13 @@ def stage1_model(input_coors,
 
         roi_conf_logits = roi_logits[:, 7]
 
-        roi_conf = tf.nn.sigmoid(roi_conf_logits)
-        nms_idx = rotated_nms3d_idx(roi_attrs, roi_conf, nms_overlap_thresh=0.7, nms_conf_thres=0.7)
-        roi_coors = tf.gather(roi_coors, nms_idx, axis=0)
-        roi_attrs = tf.gather(roi_attrs, nms_idx, axis=0)
-        roi_conf_logits = tf.gather(roi_conf_logits, nms_idx, axis=0)
-        roi_num_list = tf.expand_dims(tf.shape(nms_idx)[0], axis=0)
+        if not trainable:
+            roi_conf = tf.nn.sigmoid(roi_conf_logits)
+            nms_idx = rotated_nms3d_idx(roi_attrs, roi_conf, nms_overlap_thresh=0.7, nms_conf_thres=0.7)
+            roi_coors = tf.gather(roi_coors, nms_idx, axis=0)
+            roi_attrs = tf.gather(roi_attrs, nms_idx, axis=0)
+            roi_conf_logits = tf.gather(roi_conf_logits, nms_idx, axis=0)
+            roi_num_list = tf.expand_dims(tf.shape(nms_idx)[0], axis=0)
 
         return coors, concat_features, num_list, roi_coors, roi_attrs, roi_conf_logits, roi_num_list
 
@@ -231,3 +232,4 @@ def stage2_model(coors,
         bbox_cls_logits = bbox_logits[:, 9:]
 
     return bbox_attrs, bbox_conf_logits, bbox_dir_logits, bbox_cls_logits, bbox_num_list, bbox_idx
+
